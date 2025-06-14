@@ -1,0 +1,18 @@
+# backend/requirements.txt
+
+# Dependências principais da aplicação Flask
+Flask==2.2.5
+Flask-Cors==3.0.10
+gunicorn==21.2.0 # Servidor WSGI para produção
+
+# Bibliotecas de análise financeira e coleta de dados
+pandas==1.5.3
+numpy==1.23.5
+yfinance==0.2.37
+requests==2.31.0
+beautifulsoup4==4.12.3
+scikit-learn==1.2.2 # Para AdvancedRanking (KMeans, StandardScaler)
+
+# Logging (já incluído no Python, mas para garantir)
+# Se precisar de um logger mais robusto, pode adicionar 'loguru' ou similar.
+

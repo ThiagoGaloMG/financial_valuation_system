@@ -1,0 +1,39 @@
+# .gitignore
+
+# Node.js
+/node_modules
+/dist
+/build
+.env
+.env.local
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python/
+env/
+venv/
+*.egg-info/
+.pytest_cache/
+.coverage
+/htmlcov/
+.ipynb_checkpoints/
+*.log
+
+# IDEs
+.vscode/
+.idea/
+
+# Render
+.render/
+
+# Thumbs
+.DS_Store
+Thumbs.db
+
+# Misc
+.pytest_cache
+*.sqlite3
+*.db
