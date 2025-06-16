@@ -13,6 +13,7 @@ sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
 from ibovespa_analysis_system import IbovespaAnalysisSystem
 from utils import clean_data_for_json
+from ibovespa_data import get_market_sectors # Importar a função necessária
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -35,13 +36,13 @@ def health_check():
     """Endpoint para verificar a saúde da API."""
     return jsonify({'status': 'healthy', 'timestamp': datetime.now().isoformat()}), 200
 
-# ======================================================================
-# CORREÇÃO PRINCIPAL AQUI: Adicionado 'methods=['POST']'
-# ======================================================================
-@financial_bp.route('/complete', methods=['POST'])
+@financial_bp.route('/complete', methods=['POST', 'OPTIONS'])
 @cross_origin()
 def run_analysis_endpoint():
     """Executa a análise completa ou rápida via POST."""
+    if request.method == 'OPTIONS':
+        return jsonify({'status': 'ok'}), 200
+
     try:
         data = request.get_json() if request.data else {}
         num_companies = data.get('num_companies') if data else None
@@ -92,3 +93,14 @@ def get_companies_list():
     except Exception as e:
         logger.error(f"Erro em /companies: {e}\n{traceback.format_exc()}")
         return jsonify({"status": "error", "message": "Erro interno do servidor."}), 500
+
+@financial_bp.route('/market/sectors', methods=['GET'])
+@cross_origin()
+def get_market_sectors_api():
+    """Obter setores de mercado disponíveis."""
+    try:
+        sectors = get_market_sectors()
+        return jsonify({'sectors': sectors}), 200
+    except Exception as e:
+        logger.error(f"Erro ao obter setores de mercado: {str(e)}\n{traceback.format_exc()}")
+        return jsonify({'error': 'Erro interno ao carregar setores'}), 500
