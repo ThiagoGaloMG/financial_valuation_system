@@ -9,8 +9,8 @@ services:
     startCommand: "gunicorn -w 4 --threads 2 -b 0.0.0.0:$PORT main:app"
     autoDeploy: true
     envVars:
-      - key: PYTHON_VERSION  # <--- FORMA CORRETA DE DEFINIR A VERSÃO
-        value: "3.11"
+      - key: PYTHON_VERSION
+        value: "3.11.9" # <--- ALTERE O VALOR AQUI
       - key: PYTHONUNBUFFERED
         value: "1"
       - key: FLASK_DEBUG
