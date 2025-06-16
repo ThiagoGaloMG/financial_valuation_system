@@ -10,7 +10,7 @@ services:
     autoDeploy: true
     envVars:
       - key: PYTHON_VERSION
-        value: "3.11.9" # <--- ALTERE O VALOR AQUI
+        value: "3.11.9"
       - key: PYTHONUNBUFFERED
         value: "1"
       - key: FLASK_DEBUG
@@ -24,3 +24,6 @@ services:
     buildCommand: "npm install && npm run build"
     staticPublishPath: dist
     autoDeploy: true
+    envVars:
+      - key: NODE_VERSION
+        value: "20.11.1"
