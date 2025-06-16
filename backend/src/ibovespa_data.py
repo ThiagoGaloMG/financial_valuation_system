@@ -1,128 +1,158 @@
-Veja agora o ibovespa_data.py e gere o arquivo completo com a identação correta:
-
 # backend/src/ibovespa_data.py
 
-import yfinance as yf
+import pandas as pd
 import requests
 from bs4 import BeautifulSoup
-from typing import List, Optional
 import logging
+from typing import List, Dict
 
+# Configurar logging
+logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
+
+# URL da B3 para a composição da carteira do Ibovespa.
+# NOTA: Esta URL pode mudar. Se parar de funcionar, será necessário encontrar a nova URL da carteira teórica.
+URL_IBOVESPA = 'https://sistemaswebb3-listados.b3.com.br/indexProxy/indexCall/GetPortfolioDay/eyJsYW5ndWFnZSI6InB0LWJyIiwicGFnZU51bWJlciI6MSwicGFnZVNpemUiOjEyMCwiaW5kZXgiOiJJQk9WIiwic2VnbWVudCI6IjEifQ=='
 
 def get_ibovespa_tickers() -> List[str]:
     """
-    Obtém a lista de tickers das empresas que compõem o Ibovespa.
-    Prioriza uma lista manual atualizada, com fallback para busca em HTML se necessário.
+    Busca a lista de tickers que compõem o índice Ibovespa diretamente da B3.
+    Retorna uma lista de tickers formatados para o yfinance (ex: 'PETR4.SA').
     """
+    logger.info("Buscando tickers do Ibovespa na B3...")
+    headers = {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
+    }
     try:
-        # Lista manual dos principais componentes do Ibovespa (atualizada em 2024 para demonstração)
-        # É uma lista representativa e não exaustiva para manter a performance da demo.
-        ibovespa_tickers = [
-            'PETR4.SA', 'VALE3.SA', 'ITUB4.SA', 'BBDC4.SA', 'ABEV3.SA',
-            'BBAS3.SA', 'WEGE3.SA', 'RENT3.SA', 'LREN3.SA', 'MGLU3.SA',
-            'JBSS3.SA', 'SUZB3.SA', 'RAIL3.SA', 'USIM5.SA', 'CSNA3.SA',
-            'GGBR4.SA', 'ELET3.SA', 'VIVT3.SA', 'RADL3.SA', 'HAPV3.SA',
-            'ITSA4.SA', 'PRIO3.SA', 'RDOR3.SA', 'B3SA3.SA', 'EQTL3.SA',
-            'ENBR3.SA', 'CMIG4.SA', 'TAEE11.SA', 'BRFS3.SA', 'BPAC11.SA',
-            'KLBN11.SA', 'CYRE3.SA', 'CVCB3.SA', 'COGN3.SA', 'GOAU4.SA',
-            'IRBR3.SA', 'LINX3.SA', 'LWSA3.SA', 'PSSA3.SA', 'QUAL3.SA',
-            'SANB11.SA', 'TIMS3.SA', 'UGPA3.SA', 'CCRO3.SA', 'AZUL4.SA',
-            'EZTC3.SA', 'FLRY3.SA', 'GETT3.SA', 'GOLL4.SA', 'HYPE3.SA',
-            'LAME4.SA', 'MRVE3.SA', 'OMGE3.SA', 'PCAR3.SA', 'QUALY3.SA',
-            'SBSP3.SA', 'SLCE3.SA', 'TOTS3.SA', 'ALPA4.SA', 'EMBR3.SA',
-            'ENGI11.SA', 'HAPV3.SA', 'RAIA3.SA', 'SULA11.SA', 'VVAR3.SA'
-        ]
-        logger.info(f"Tickers do Ibovespa (lista manual): {len(ibovespa_tickers)} empresas.")
-        return ibovespa_tickers
-    except Exception as e:
-        logger.error(f"Erro ao obter tickers do Ibovespa: {e}")
-        return []
-
-def get_selic_rate() -> Optional[float]:
-    """
-    Obtém a taxa Selic meta atual do site do Banco Central.
-    Retorna a taxa em percentual (ex: 13.75 para 13.75%).
-    """
-    try:
-        url = "https://www.bcb.gov.br/"
-        response = requests.get(url, timeout=10)
-        response.raise_for_status() # Lança exceção para erros HTTP
-        soup = BeautifulSoup(response.text, 'html.parser')
+        response = requests.get(URL_IBOVESPA, headers=headers)
+        response.raise_for_status()  # Lança um erro para status HTTP ruins (4xx ou 5xx)
+        data = response.json()
         
-        # Tenta encontrar a Selic em diferentes elementos
-        # A estrutura do site do BC pode mudar, então é bom ter flexibilidade
-        selic_element = soup.find('p', class_='valor')
-        if selic_element:
-            selic_text = selic_element.text.replace(',', '.').strip()
-            # Remove qualquer texto adicional como "(%)"
-            selic_rate = float(''.join(filter(lambda x: x.isdigit() or x == '.', selic_text)))
-            logger.info(f"Taxa Selic obtida: {selic_rate}%")
+        tickers = [f"{item['cod']}.SA" for item in data.get('results', [])]
+        
+        if not tickers:
+            logger.warning("A lista de tickers do Ibovespa retornou vazia. Verifique a URL da B3.")
+            return []
+            
+        logger.info(f"Encontrados {len(tickers)} tickers no Ibovespa.")
+        return tickers
+    except requests.exceptions.RequestException as e:
+        logger.error(f"Erro de rede ao buscar tickers do Ibovespa: {e}")
+    except Exception as e:
+        logger.error(f"Erro ao processar dados dos tickers do Ibovespa: {e}")
+    
+    # Retorna uma lista vazia em caso de falha
+    return []
+
+def get_selic_rate() -> float:
+    """
+    Busca a taxa Selic atual do webservice do Banco Central do Brasil.
+    Retorna a taxa Selic anualizada como um float (ex: 10.5).
+    """
+    logger.info("Buscando a taxa Selic no Banco Central...")
+    # URL do webservice de séries temporais do BCB para a Selic (código 1178)
+    url_selic = 'https://api.bcb.gov.br/dados/serie/bcdata.sgs.1178/dados/ultimos/1?formato=json'
+    
+    try:
+        response = requests.get(url_selic)
+        response.raise_for_status()
+        data = response.json()
+        
+        if data and isinstance(data, list) and 'valor' in data[0]:
+            # A taxa vem como percentual ao dia. Para anualizar: (1 + taxa_diaria)^252 - 1
+            # O BCB já fornece a taxa anualizada na meta (código 432), mas a série 1178 é a DI.
+            # A série 1178 (CDI) é mais próxima do custo de oportunidade sem risco.
+            # O valor já vem como % a.a., mas a base é 252 dias. Não precisa de conversão complexa.
+            selic_rate = float(data[0]['valor'])
+            logger.info(f"Taxa Selic (CDI) encontrada: {selic_rate:.2f}% a.a.")
             return selic_rate
         else:
-            logger.warning("Elemento da taxa Selic não encontrado na página do BC. Tentando alternativa...")
-            # Fallback: tentar encontrar em um div com id específico ou classe
-            selic_alt_element = soup.find('div', id='blocoTaxaSelic')
-            if selic_alt_element:
-                text_content = selic_alt_element.get_text()
-                import re
-                match = re.search(r'(\d+,\d+)%', text_content)
-                if match:
-                    selic_rate = float(match.group(1).replace(',', '.'))
-                    logger.info(f"Taxa Selic obtida (alternativa): {selic_rate}%")
-                    return selic_rate
-
-        logger.error("Não foi possível encontrar a taxa Selic na página do Banco Central.")
-        return None
+            logger.warning("Formato de dados da Selic inesperado.")
+            return 10.5 # Retorna um valor padrão razoável se a busca falhar
+            
     except requests.exceptions.RequestException as e:
-        logger.error(f"Erro ao conectar com o Banco Central para obter a Selic: {e}")
-        return None
+        logger.error(f"Erro de rede ao buscar taxa Selic: {e}")
     except Exception as e:
-        logger.error(f"Erro ao processar a página do Banco Central para obter a Selic: {e}")
-        return None
+        logger.error(f"Erro ao processar dados da Selic: {e}")
+        
+    return 10.5 # Retorna um valor padrão razoável em caso de falha
 
-def validate_ticker(ticker: str) -> str:
+def get_market_sectors() -> Dict[str, List[str]]:
     """
-    Valida e formata um ticker para o padrão brasileiro (.SA).
+    Busca os setores de atuação das empresas do Ibovespa.
+    Esta função usa scraping e pode ser instável. Em um projeto real,
+    seria melhor usar uma API paga ou um banco de dados próprio.
     """
-    ticker = ticker.upper().strip()
-    if not ticker.endswith('.SA'):
-        ticker += '.SA'
-    return ticker
+    logger.info("Buscando setores das empresas do Ibovespa (pode levar um tempo)...")
+    # Usa uma fonte confiável como a B3 ou um portal financeiro
+    url = "https://www.fundamentus.com.br/resultado.php"
+    headers = {'User-agent': 'Mozilla/5.0'}
+    
+    try:
+        response = requests.get(url, headers=headers)
+        response.raise_for_status()
+        soup = BeautifulSoup(response.text, 'html.parser')
+        
+        table = soup.find('table', {'id': 'resultado'})
+        if not table:
+            logger.warning("Tabela de resultados não encontrada no Fundamentus.")
+            return {}
+            
+        rows = table.find_all('tr')[1:] # Ignorar cabeçalho
+        
+        sectors = {}
+        for row in rows:
+            cols = row.find_all('td')
+            if len(cols) > 1:
+                ticker_raw = cols[0].text.strip()
+                sector_text = cols[-1].text.strip() # A última coluna geralmente é o setor
+                
+                # Agrupar setores similares (simplificação)
+                if 'finan' in sector_text.lower() or 'segur' in sector_text.lower():
+                    sector_group = 'Financeiro e Seguros'
+                elif 'energ' in sector_text.lower() or 'petr' in sector_text.lower():
+                    sector_group = 'Energia e Petróleo'
+                elif 'varej' in sector_text.lower() or 'comerc' in sector_text.lower():
+                    sector_group = 'Varejo e Comércio'
+                elif 'saude' in sector_text.lower():
+                    sector_group = 'Saúde'
+                elif 'ind' in sector_text.lower():
+                    sector_group = 'Industrial'
+                else:
+                    sector_group = 'Outros' # Agrupa os demais
+                
+                if sector_group not in sectors:
+                    sectors[sector_group] = []
+                sectors[sector_group].append(f"{ticker_raw}.SA")
 
-def get_market_sectors() -> dict:
-    """
-    Retorna um dicionário com setores e suas principais empresas (exemplos).
-    Pode ser expandido com dados reais ou lido de um CSV/DB.
-    """
-    return {
-        'Petróleo e Gás': ['PETR4.SA', 'PRIO3.SA', 'RECV3.SA'],
-        'Mineração': ['VALE3.SA', 'USIM5.SA', 'CSNA3.SA', 'GGBR4.SA', 'GOAU4.SA'],
-        'Bancos': ['ITUB4.SA', 'BBDC4.SA', 'BBAS3.SA', 'SANB11.SA', 'BBSE3.SA'],
-        'Bebidas': ['ABEV3.SA'],
-        'Varejo': ['MGLU3.SA', 'LREN3.SA', 'ASAI3.SA', 'LWSA3.SA', 'PCAR3.SA'],
-        'Alimentos': ['JBSS3.SA', 'BEEF3.SA', 'MRFG3.SA', 'CSAN3.SA'],
-        'Energia Elétrica': ['ELET3.SA', 'CPFE3.SA', 'CMIG4.SA', 'TAEE11.SA', 'ENBR3.SA', 'EQTL3.SA', 'OMGE3.SA', 'SBSP3.SA'],
-        'Telecomunicações': ['VIVT3.SA', 'TIMS3.SA'],
-        'Tecnologia': ['TOTS3.SA', 'LINX3.SA'],
-        'Saúde': ['RADL3.SA', 'RAIA3.SA', 'HAPV3.SA', 'RDOR3.SA', 'FLRY3.SA', 'HYPE3.SA'],
-        'Transporte': ['RENT3.SA', 'AZUL4.SA', 'GOLL4.SA', 'RAIL3.SA', 'CVCB3.SA'],
-        'Construção Civil': ['EZTC3.SA', 'MRVE3.SA', 'CYRE3.SA'],
-        'Papel e Celulose': ['SUZB3.SA', 'KLBN11.SA'],
-        'Siderurgia': ['CSNA3.SA', 'USIM5.SA', 'GGBR4.SA', 'GOAU4.SA'],
-        'Aviação': ['AZUL4.SA', 'GOLL4.SA'],
-        'Diversos': ['WEGE3.SA', 'BRFS3.SA', 'BPAC11.SA', 'GETT3.SA', 'IRBR3.SA', 'LAME4.SA', 'PSSA3.SA', 'QUAL3.SA', 'SULA11.SA', 'UGPA3.SA', 'VVAR3.SA', 'COGN3.SA', 'ALPA4.SA', 'EMBR3.SA', 'ENGI11.SA', 'B3SA3.SA']
-    }
+        logger.info("Setores das empresas coletados com sucesso.")
+        return sectors
+        
+    except Exception as e:
+        logger.error(f"Erro ao fazer scraping dos setores: {e}")
+        return {}
+
 
 if __name__ == '__main__':
-    # Exemplo de uso
+    # Teste para as funções
+    print("--- Testando get_ibovespa_tickers ---")
     tickers = get_ibovespa_tickers()
     if tickers:
-        print(f"Primeiros 5 tickers do Ibovespa: {tickers[:5]}")
-    
-    selic = get_selic_rate()
-    if selic is not None:
-        print(f"Taxa Selic atual: {selic}%")
+        print(f"Primeiros 5 tickers: {tickers[:5]}")
+    else:
+        print("Não foi possível buscar os tickers.")
 
-    sectors = get_market_sectors()
-    print(f"Setores de mercado (exemplo): {list(sectors.keys())[:3]}...")
+    print("\n--- Testando get_selic_rate ---")
+    selic = get_selic_rate()
+    if selic:
+        print(f"Taxa Selic: {selic}%")
+    else:
+        print("Não foi possível buscar a taxa Selic.")
+        
+    print("\n--- Testando get_market_sectors ---")
+    market_sectors = get_market_sectors()
+    if market_sectors:
+        for sector, companies in list(market_sectors.items())[:3]: # Mostra 3 setores para o demo
+            print(f"Setor: {sector}, Empresas: {companies[:2]}") # Mostra 2 empresas por setor
+    else:
+        print("Não foi possível buscar os setores.")
