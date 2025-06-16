@@ -1,20 +1,23 @@
 services:
+  # Backend - Web Service Dinâmico
   - type: web
     name: financial-valuation-backend
     env: python
+    plan: free # Correto para Web Services no plano gratuito
     buildCommand: "pip install -r requirements.txt"
     startCommand: "gunicorn -w 4 --threads 2 -b 0.0.0.0:$PORT main:app"
     autoDeploy: true
-    plan: free
     envVars:
       - key: PYTHONUNBUFFERED
         value: "1"
       - key: FLASK_DEBUG
         value: "False"
+
+  # Frontend - Site Estático
   - type: web
     name: financial-valuation-frontend
     env: static
+    # A linha 'plan' foi removida daqui, pois sites estáticos são gratuitos por padrão.
     buildCommand: "npm install && npm run build"
     staticPublishPath: dist
     autoDeploy: true
-    plan: free
