@@ -10,11 +10,10 @@ from datetime import datetime
 import json
 
 # Adicionar o diretório src ao path para importar os módulos
-# Garante que as importações funcionem corretamente em diferentes ambientes de execução
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
 from ibovespa_analysis_system import IbovespaAnalysisSystem
-from utils import clean_data_for_json # Importa a função utilitária para limpar NaNs/Infs
+from utils import clean_data_for_json
 
 # Configurar logging
 logging.basicConfig(level=logging.INFO)
@@ -29,7 +28,6 @@ analysis_system_instance = None
 def get_analysis_system():
     """
     Função para obter a instância (singleton) do sistema de análise.
-    Garante que a inicialização do sistema de análise seja feita apenas uma vez.
     """
     global analysis_system_instance
     if analysis_system_instance is None:
@@ -42,7 +40,7 @@ def get_analysis_system():
 @cross_origin()
 def health_check():
     """
-    Endpoint para verificar se a API está funcionando e o sistema de análise está pronto.
+    Endpoint para verificar se a API está funcionando.
     """
     try:
         system = get_analysis_system()
@@ -50,18 +48,7 @@ def health_check():
             'status': 'healthy',
             'message': 'API de Análise Financeira está funcionando',
             'timestamp': datetime.now().isoformat(),
-            'system_initialized': system is not None,
-            'ibovespa_tickers_loaded': len(system.ibovespa_tickers) > 0,
-            'features': [
-                'complete_analysis',
-                'quick_analysis', 
-                'company_specific_analysis',
-                'eva_calculation',
-                'efv_calculation',
-                'wealth_calculation',
-                'ranking',
-                'portfolio_suggestion'
-            ]
+            'system_initialized': system is not None
         }
         logger.info("Health check realizado com sucesso.")
         return jsonify(status), 200
@@ -73,29 +60,21 @@ def health_check():
             'timestamp': datetime.now().isoformat()
         }), 500
 
-@financial_bp.route('/analyze/complete', methods=['POST'])
+@financial_bp.route('/complete', methods=['POST']) # ROTA CORRIGIDA
 @cross_origin()
 def run_complete_analysis():
     """
-    Executa a análise completa do Ibovespa ou para um número limitado de empresas.
-    Permite passar 'num_companies' no corpo da requisição para análise rápida.
+    Executa a análise completa ou rápida.
     """
     try:
-        logger.info("Iniciando análise completa do Ibovespa via API")
+        logger.info("Iniciando análise completa/rápida via API")
         
         system = get_analysis_system()
         
         data = request.get_json(silent=True)
         num_companies = None
         if data and 'num_companies' in data:
-            try:
-                num_companies = int(data['num_companies'])
-                if num_companies <= 0:
-                    num_companies = None # Analisar todas se for <= 0
-                logger.info(f"Requisição para análise rápida de {num_companies} empresas.")
-            except ValueError:
-                logger.warning("Valor inválido para 'num_companies'. Analisando todas as empresas.")
-                num_companies = None
+            num_companies = data.get('num_companies')
         
         start_time = datetime.now()
         report = system.run_complete_analysis(num_companies=num_companies)
@@ -103,32 +82,31 @@ def run_complete_analysis():
         
         report['execution_time_seconds'] = (end_time - start_time).total_seconds()
         
-        # Limpar NaNs/Infs do resultado antes de jsonify
         cleaned_report = clean_data_for_json(report)
         
-        logger.info("Análise completa do Ibovespa finalizada via API.")
+        logger.info("Análise finalizada via API.")
         return jsonify(cleaned_report), 200
         
     except Exception as e:
-        logger.error(f"Erro ao executar análise completa: {str(e)}\n{traceback.format_exc()}")
+        logger.error(f"Erro ao executar análise: {str(e)}\n{traceback.format_exc()}")
         return jsonify({
             'status': 'error',
-            'message': 'Erro interno do servidor ao executar análise completa',
+            'message': 'Erro interno do servidor ao executar análise',
             'error_details': str(e),
             'timestamp': datetime.now().isoformat()
         }), 500
 
-@financial_bp.route('/analyze/company/<ticker>', methods=['GET'])
+@financial_bp.route('/company/<ticker>', methods=['GET']) # ROTA CORRIGIDA
 @cross_origin()
 def get_company_analysis(ticker):
     """
-    Obtém dados de análise detalhados para uma empresa específica.
+    Obtém a análise para uma empresa específica.
     """
     try:
         logger.info(f"Iniciando análise para empresa específica: {ticker}")
         
         system = get_analysis_system()
-        analysis_result = system.get_company_analysis(ticker)
+        analysis_result = system.get_company_analysis(ticker.upper())
         
         cleaned_result = clean_data_for_json(analysis_result)
         
@@ -148,7 +126,7 @@ def get_company_analysis(ticker):
 @cross_origin()
 def get_companies_list():
     """
-    Obtém a lista de todas as empresas do Ibovespa conhecidas pelo sistema.
+    Obtém a lista de empresas do Ibovespa.
     """
     try:
         logger.info("Obtendo lista de empresas do Ibovespa.")
@@ -159,8 +137,7 @@ def get_companies_list():
         result = {
             'companies': companies,
             'total': len(companies),
-            'timestamp': datetime.now().isoformat(),
-            'api_version': '1.0'
+            'timestamp': datetime.now().isoformat()
         }
         
         logger.info(f"Lista de empresas retornada: {len(companies)} empresas.")
@@ -173,15 +150,3 @@ def get_companies_list():
             'message': str(e),
             'timestamp': datetime.now().isoformat()
         }), 500
-
-@financial_bp.route('/market/sectors', methods=['GET'])
-@cross_origin()
-def get_market_sectors_api():
-    """Obter setores de mercado disponíveis (utiliza dados estáticos por enquanto)."""
-    try:
-        from ibovespa_data import get_market_sectors
-        sectors = get_market_sectors()
-        return jsonify({'sectors': sectors}), 200
-    except Exception as e:
-        logger.error(f"Erro ao obter setores de mercado: {str(e)}\n{traceback.format_exc()}")
-        return jsonify({'error': 'Erro interno ao carregar setores'}), 500
