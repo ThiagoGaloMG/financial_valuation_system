@@ -28,7 +28,7 @@ class RankingCriteria:
     def normalize_weights(self):
         """Normaliza os pesos para somar 1.0."""
         total = (self.eva_weight + self.efv_weight + self.upside_weight + 
-                self.profitability_weight + self.liquidity_weight)
+                 self.profitability_weight + self.liquidity_weight)
         if total > 0:
             self.eva_weight /= total
             self.efv_weight /= total
@@ -148,12 +148,12 @@ class AdvancedRanking:
         Baseado nos insights automáticos do Plano de Melhorias.
         """
         opportunities = {
-            'value_creators': [],       # EVA > 0
-            'growth_potential': [],     # EFV > 0
-            'undervalued': [],          # Upside > 20% (exemplo de critério)
-            'best_opportunities': [],   # Combinação de critérios
-            'clusters': {},             # Agrupamento de empresas (se K-Means for usado)
-            'sector_rankings': {}       # Ranking por setor (se setores forem identificados)
+            'value_creators': [],      # EVA > 0
+            'growth_potential': [],    # EFV > 0
+            'undervalued': [],         # Upside > 20% (exemplo de critério)
+            'best_opportunities': [],  # Combinação de critérios
+            'clusters': {},            # Agrupamento de empresas (se K-Means for usado)
+            'sector_rankings': {}      # Ranking por setor (se setores forem identificados)
         }
 
         # Primeiro, calcular métricas para todas as empresas
