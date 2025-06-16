@@ -16,3 +16,5 @@ scikit-learn==1.2.2 # Para AdvancedRanking (KMeans, StandardScaler)
 # Logging (já incluído no Python, mas para garantir)
 # Se precisar de um logger mais robusto, pode adicionar 'loguru' ou similar.
 
+psycopg2-binary==2.9.9 # Ou a versão mais recente que o Render/ambiente aceite
+python-dotenv==1.0.1  # Útil para testes locais futuros, mas o Render não precisa para injetar as variáveis
