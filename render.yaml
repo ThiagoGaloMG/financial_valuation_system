@@ -4,8 +4,9 @@ services:
     name: financial-valuation-backend
     env: python
     plan: free
-    rootDir: backend  # Confirma que os comandos devem rodar dentro da pasta 'backend'
-    buildCommand: "pip install -r requirements.txt"
+    rootDir: backend
+    # GARANTA QUE ESTA LINHA ESTEJA ATUALIZADA:
+    buildCommand: "pip install --upgrade pip setuptools wheel && pip install -r requirements.txt"
     startCommand: "gunicorn -w 4 --threads 2 -b 0.0.0.0:$PORT main:app"
     autoDeploy: true
     envVars:
@@ -18,7 +19,7 @@ services:
   - type: web
     name: financial-valuation-frontend
     env: static
-    rootDir: frontend # Confirma que os comandos devem rodar dentro da pasta 'frontend'
+    rootDir: frontend
     buildCommand: "npm install && npm run build"
     staticPublishPath: dist
     autoDeploy: true
