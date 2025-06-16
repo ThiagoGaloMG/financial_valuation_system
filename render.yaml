@@ -1,6 +1,3 @@
-apiVersion: services.render.com/v1alpha1
-kind: Blueprint
-name: financial-valuation-system
 services:
   - type: web
     name: financial-valuation-backend
