@@ -1,3 +1,5 @@
+Veja agora o ibovespa_data.py e gere o arquivo completo com a identação correta:
+
 # backend/src/ibovespa_data.py
 
 import yfinance as yf
