@@ -17,7 +17,7 @@ services:
       - key: dbname
         value: postgres
 
-  - type: static
+  - type: static_site
     name: financial-valuation-frontend
     rootDir: frontend
     buildCommand: npm install && npm run build
