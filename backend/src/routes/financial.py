@@ -25,7 +25,11 @@ logging.basicConfig(level=logging.INFO, format='%(asctime)s [%(levelname)s] - %(
 logger = logging.getLogger(__name__)
 
 financial_bp = Blueprint('financial', __name__)
-
+@financial_bp.route('/health', methods=['GET'])
+@cross_origin()
+def health_check():
+    """Endpoint para verificar se a API está rodando."""
+    return jsonify({'status': 'healthy', 'timestamp': datetime.now().isoformat()}), 200
 # Singleton pattern para garantir que o sistema de análise seja inicializado apenas uma vez
 analysis_system_instance = None
 def get_analysis_system():
