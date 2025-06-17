@@ -1,24 +1,47 @@
+# render.yaml
+# Blueprint para deploy automático no Render.
+# Define os serviços de backend e frontend.
+
 services:
+  # Serviço do Backend (API Flask em Docker)
   - type: web
     name: financial-valuation-backend
     env: docker
     rootDir: backend
-    dockerfilePath: Dockerfile
+    dockerfilePath: ./Dockerfile
+    healthCheckPath: /api/v1/health # Rota para o Render verificar se a API está saudável
     envVars:
-      - key: DB_HOST
-        value: aws-0-sa-east-1.pooler.supabase.com
-      - key: DB_PORT
-        value: "5432"
-      - key: DB_USER
-        value: postgres.lziabrglyusvzdlywyno
-      - key: DB_PASSWORD
-        value: 181841thi181841
-      - key: DB_NAME
-        value: postgres
-      # Adicione aqui outras variáveis que seu app precise, ex:
-      # - key: SECRET_KEY
-      #   value: <sua_secret_key>
-      # - key: SUPABASE_URL
-      #   value: https://lziabrglyusvzdlywyno.supabase.co
-      # - key: SUPABASE_ANON_KEY
-      #   value: <anon-key>
+      - key: PYTHON_VERSION
+        value: 3.9.18
+      - key: POETRY_VERSION
+        value: 1.7.1
+      # IMPORTANTE: As credenciais do banco de dados DEVEM ser configuradas
+      # como "Secret Files" ou "Environment Variables" na UI do Render.
+      # NÃO coloque senhas aqui.
+      # - key: DB_HOST
+      #   fromSecret: db_host_secret
+      # - key: DB_PORT
+      #   fromSecret: db_port_secret
+      # - key: DB_USER
+      #   fromSecret: db_user_secret
+      # - key: DB_PASSWORD
+      #   fromSecret: db_password_secret
+      # - key: DB_NAME
+      #   fromSecret: db_name_secret
+    disk:
+      name: data
+      mountPath: /data
+      sizeGB: 1
+
+  # Serviço do Frontend (Site Estático React)
+  - type: web
+    name: financial-valuation-frontend
+    env: static
+    rootDir: frontend
+    buildCommand: "npm install && npm run build"
+    staticPublishPath: ./dist
+    # Redireciona todas as chamadas para /api para o serviço de backend
+    routes:
+      - type: rewrite
+        source: /api/*
+        destination: https://financial-valuation-backend.onrender.com/api/*
