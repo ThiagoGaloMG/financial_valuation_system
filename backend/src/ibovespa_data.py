@@ -14,7 +14,7 @@ URL_IBOVESPA = 'https://sistemaswebb3-listados.b3.com.br/indexProxy/indexCall/Ge
 # =====================================================================================
 # LISTA DE FALLBACK (SEGURANÇA) - ATUALIZADA COM A LISTA COMPLETA FORNECIDA
 # Se a busca na B3 falhar (comum em servidores de nuvem), usaremos esta lista
-# para garantir que a aplicação sempre funcione.
+# para garantir que a aplicação sempre tenha tickers para analisar.
 # =====================================================================================
 FALLBACK_IBOVESPA_TICKERS = [
     "ALOS3.SA", "ABEV3.SA", "ASAI3.SA", "AURE3.SA", "AZUL4.SA", "B3SA3.SA",
@@ -44,8 +44,8 @@ def get_ibovespa_tickers() -> List[str]:
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
     }
     try:
-        response = requests.get(URL_IBOVESPA, headers=headers, timeout=10)
-        response.raise_for_status()
+        response = requests.get(URL_IBOVESPA, headers=headers, timeout=10) # Timeout de 10s
+        response.raise_for_status() # Lança erro para status HTTP 4xx/5xx
         data = response.json()
         
         tickers = [f"{item['cod']}.SA" for item in data.get('results', [])]
