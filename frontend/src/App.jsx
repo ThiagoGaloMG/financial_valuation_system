@@ -4,8 +4,9 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from './com
 import { Input } from './components/ui/input.jsx';
 import { Label } from './components/ui/label.jsx';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from './components/ui/tabs.jsx';
+import { Badge } from './components/ui/badge.jsx';
 import { Alert, AlertDescription } from './components/ui/alert.jsx';
-import { Loader2, Info, Zap, Activity, BarChart3 } from 'lucide-react';
+import { Loader2, Info, Zap, Activity } from 'lucide-react';
 import Chart from 'chart.js/auto';
 import './App.css';
 import './index.css';
@@ -111,6 +112,7 @@ function App() {
     const [activeTab, setActiveTab] = useState('dashboard');
     const chartInstances = useRef({});
 
+    // Funções de formatação
     const formatCurrency = (value) => {
         if (value === null || isNaN(value)) return 'N/A';
         if (Math.abs(value) >= 1e9) return `R$ ${(value / 1e9).toFixed(2)}B`;
@@ -128,12 +130,15 @@ function App() {
         return new Date(isoString).toLocaleDateString('pt-BR');
     };
 
+    // Função centralizada para buscar dados da API
     const fetchAnalysis = async (endpoint, options = {}) => {
         setLoading(true);
         setError('');
         try {
+            // CORREÇÃO: Usando crases (template literals) para montar a URL corretamente.
             const response = await fetch(`${API_BASE_URL}${endpoint}`, options);
             if (!response.ok) {
+                // Tenta extrair uma mensagem de erro do backend, senão usa o status http
                 const errorText = await response.text();
                 let errorMessage;
                 try {
@@ -181,6 +186,7 @@ function App() {
         }
     };
 
+    // Efeito para gerenciar os gráficos
     useEffect(() => {
         const destroyChart = (chartId) => {
             if (chartInstances.current[chartId]) {
@@ -211,6 +217,7 @@ function App() {
             }
         }
         
+        // Limpeza dos gráficos ao desmontar o componente
         return () => { Object.values(chartInstances.current).forEach(chart => chart.destroy()); };
     }, [activeTab, fullAnalysisReport]);
 
