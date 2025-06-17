@@ -3,3 +3,4 @@
 # Este arquivo torna o diretório 'src' um pacote Python.
 # Pode ser usado para inicializações de pacotes ou configurações globais.
 
+self.request_delay = 1.5
