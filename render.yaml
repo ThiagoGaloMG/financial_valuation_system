@@ -1,29 +1,29 @@
 services:
-  # Backend - Web Service Dinâmico
   - type: web
     name: financial-valuation-backend
     env: python
-    plan: free
     rootDir: backend
-    buildCommand: "pip install --upgrade pip setuptools wheel && pip install -r requirements.txt"
-    startCommand: "gunicorn -w 4 --threads 2 -b 0.0.0.0:$PORT main:app"
-    autoDeploy: true
+    buildCommand: pip install -r requirements.txt
+    startCommand: gunicorn main:app
     envVars:
-      - key: PYTHON_VERSION
-        value: "3.11.9"
-      - key: PYTHONUNBUFFERED
-        value: "1"
-      - key: FLASK_DEBUG
-        value: "False"
+      - key: user
+        value: postgres.lziabrglyusvzdlywyno
+      - key: password
+        value: 181841thi181841
+      - key: host
+        value: aws-0-sa-east-1.pooler.supabase.com
+      - key: port
+        value: 5432
+      - key: dbname
+        value: postgres
 
-  # Frontend - Site Estático
-  - type: web
+  - type: static
     name: financial-valuation-frontend
-    env: static
     rootDir: frontend
-    buildCommand: "npm install && chmod +x node_modules/.bin/vite && npx vite build"
+    buildCommand: npm install && npm run build
     staticPublishPath: dist
-    autoDeploy: true
     envVars:
       - key: NODE_VERSION
-        value: "20.11.1"
+        value: 20.11.1
+      - key: VITE_API_BASE_URL
+        value: https://financial-valuation-backend.onrender.com/api/v1
