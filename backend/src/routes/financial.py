@@ -7,12 +7,19 @@ import os
 import logging
 import traceback
 from datetime import datetime
+import json  # Para converter dados em JSON ao inserir no banco
 
 # Adiciona o diretório 'src' ao path do sistema para encontrar os módulos
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
 from ibovespa_analysis_system import IbovespaAnalysisSystem
 from utils import clean_data_for_json
+
+# Import para integração com Supabase (psycopg2)
+try:
+    from db.database import insert_analysis_report
+except ImportError as e:
+    logging.warning(f"Não foi possível importar insert_analysis_report: {e}. Função de persistência ficará inativa.")
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s [%(levelname)s] - %(message)s')
 logger = logging.getLogger(__name__)
@@ -58,7 +65,19 @@ def run_analysis_endpoint():
             logger.error(error_msg)
             return jsonify({"status": "error", "message": error_msg}), 500
 
-        logger.info("Análise concluída e retornada com sucesso.")
+        logger.info("Análise concluída com sucesso. Tentando persistir no banco de dados...")
+        # Tenta persistir no Supabase via insert_analysis_report, se disponível
+        try:
+            # Ajuste: a função espera o dicionário `report`, que deve conter chaves como:
+            # report_name, summary_statistics, full_report_data, report_type, execution_time_seconds.
+            # Caso precise adaptar, mapeie os campos corretamente.
+            insert_analysis_report(report)
+            logger.info("Relatório persistido com sucesso no banco de dados.")
+        except Exception as e_insert:
+            logger.error(f"Falha ao persistir relatório no banco: {e_insert}", exc_info=True)
+            # Continua sem bloquear: retornamos a resposta ao front, mas logamos o erro.
+        
+        # Retorna o report ao frontend
         return jsonify(clean_data_for_json(report))
 
     except Exception as e:
