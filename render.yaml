@@ -5,13 +5,20 @@ services:
     rootDir: backend
     dockerfilePath: Dockerfile
     envVars:
-      - key: user
-        value: postgres.lziabrglyusvzdlywyno
-      - key: password
-        value: 181841thi181841
-      - key: host
+      - key: DB_HOST
         value: aws-0-sa-east-1.pooler.supabase.com
-      - key: port
-        value: 5432
-      - key: dbname
+      - key: DB_PORT
+        value: "5432"
+      - key: DB_USER
+        value: postgres.lziabrglyusvzdlywyno
+      - key: DB_PASSWORD
+        value: 181841thi181841
+      - key: DB_NAME
         value: postgres
+      # Adicione aqui outras variáveis que seu app precise, ex:
+      # - key: SECRET_KEY
+      #   value: <sua_secret_key>
+      # - key: SUPABASE_URL
+      #   value: https://lziabrglyusvzdlywyno.supabase.co
+      # - key: SUPABASE_ANON_KEY
+      #   value: <anon-key>
