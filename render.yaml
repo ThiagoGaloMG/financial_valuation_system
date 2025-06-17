@@ -15,10 +15,6 @@ services:
         value: "1"
       - key: FLASK_DEBUG
         value: "False"
-    # Adiciona a verificação de saúde com o timeout aumentado
-    healthCheck:
-      path: /
-      timeoutSeconds: 600
 
   # Frontend - Site Estático
   - type: web
