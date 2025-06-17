@@ -12,7 +12,7 @@ logger = logging.getLogger(__name__)
 URL_IBOVESPA = 'https://sistemaswebb3-listados.b3.com.br/indexProxy/indexCall/GetPortfolioDay/eyJsYW5ndWFnZSI6InB0LWJyIiwicGFnZU51bWJlciI6MSwicGFnZVNpemUiOjEyMCwiaW5kZXgiOiJJQk9WIiwic2VnbWVudCI6IjEifQ=='
 
 # =====================================================================================
-# LISTA DE FALLBACK (SEGURANÇA) - ATUALIZADA COM A SUA LISTA COMPLETA
+# LISTA DE FALLBACK (SEGURANÇA) - ATUALIZADA COM A LISTA COMPLETA FORNECIDA
 # Se a busca na B3 falhar (comum em servidores de nuvem), usaremos esta lista
 # para garantir que a aplicação sempre funcione.
 # =====================================================================================
@@ -28,7 +28,7 @@ FALLBACK_IBOVESPA_TICKERS = [
     "MRVE3.SA", "MULT3.SA", "PCAR3.SA", "PETR3.SA", "PETR4.SA",
     "RECV3.SA", "PRIO3.SA", "PETZ3.SA", "PSSA3.SA", "RADL3.SA", "RAIZ4.SA",
     "RDOR3.SA", "RAIL3.SA", "SBSP3.SA", "SANB11.SA", "STBP3.SA", "SMTO3.SA",
-    "CSNA3.SA", "SLCE3.SA", "SUZB3.SA", "TAEE11.SA", "VIVT3.SA",
+    "CSNA3.SA", "SLCE3.SA", "SMFT3.SA", "SUZB3.SA", "TAEE11.SA", "VIVT3.SA",
     "TIMS3.SA", "TOTS3.SA", "UGPA3.SA", "USIM5.SA", "VALE3.SA", "VAMO3.SA",
     "VBBR3.SA", "VIVA3.SA", "WEGE3.SA", "YDUQ3.SA"
 ]
@@ -44,8 +44,8 @@ def get_ibovespa_tickers() -> List[str]:
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
     }
     try:
-        response = requests.get(URL_IBOVESPA, headers=headers, timeout=10) # Timeout de 10s
-        response.raise_for_status() # Lança erro para status HTTP 4xx/5xx
+        response = requests.get(URL_IBOVESPA, headers=headers, timeout=10)
+        response.raise_for_status()
         data = response.json()
         
         tickers = [f"{item['cod']}.SA" for item in data.get('results', [])]
@@ -76,7 +76,6 @@ def get_selic_rate() -> float:
         data = response.json()
         
         if data and isinstance(data, list) and 'valor' in data[0]:
-            # O valor já vem como % a.a. (base 252), pronto para uso.
             selic_rate = float(data[0]['valor'])
             logger.info(f"Taxa Selic encontrada: {selic_rate:.2f}% a.a.")
             return selic_rate
