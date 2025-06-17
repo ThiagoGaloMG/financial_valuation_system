@@ -1,105 +1,142 @@
-    /* frontend/src/App.css */
+/*
+ * App.css
+ * Paleta de cores e estilos base para o Sistema de Análise Financeira.
+ * Este arquivo complementa o TailwindCSS para criar um tema coeso e profissional.
+ */
 
-    /* Estilos básicos para o componente App, se necessário, além do Tailwind */
-    .App {
-      font-family: 'Inter', sans-serif;
-      text-align: center;
-    }
+/* 1. Variáveis de Tema (Paleta de Cores e Tipografia) */
+:root {
+  /* Paleta de Cores Principal */
+  --background: #f8fafc; /* slate-50 */
+  --foreground: #0f172a; /* slate-900 */
+  --muted: #f1f5f9; /* slate-100 */
+  --muted-foreground: #64748b; /* slate-500 */
 
-    /* Estilos para a tabela */
-    .min-w-full {
-      width: 100%;
-    }
+  /* Cores dos Cards */
+  --card: #ffffff;
+  --card-foreground: var(--foreground);
 
-    .divide-y > * + * {
-      border-top-width: 1px;
-    }
+  /* Cor Primária (Acento Principal) */
+  --primary: #2563eb; /* blue-600 */
+  --primary-foreground: #ffffff; /* branco */
 
-    .table-header-sortable {
-      cursor: pointer;
-      transition: background-color 0.2s;
-    }
+  /* Cores de Borda */
+  --border: #e2e8f0; /* slate-200 */
 
-    .table-header-sortable:hover {
-      background-color: #e2e8f0; /* slate-200 */
-    }
+  /* Cores de Feedback */
+  --success: #16a34a; /* green-600 */
+  --destructive: #dc2626; /* red-600 */
 
-    /* Loader spinner */
-    .loader {
-      border: 4px solid #f3f3f3; /* Light grey */
-      border-top: 4px solid #3b82f6; /* Blue */
-      border-radius: 50%;
-      width: 40px;
-      height: 40px;
-      animation: spin 1s linear infinite;
-      margin: auto;
-    }
+  /* Tipografia */
+  --font-sans: 'Inter', sans-serif;
+  --font-size-base: 16px;
+  --line-height-base: 1.6;
+}
 
-    @keyframes spin {
-      0% { transform: rotate(0deg); }
-      100% { transform: rotate(360deg); }
-    }
+/* 2. Estilos Base e Reset */
+body {
+  font-family: var(--font-sans);
+  font-size: var(--font-size-base);
+  line-height: var(--line-height-base);
+  background-color: var(--background);
+  color: var(--foreground);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
 
-    /* Estilos para cards de métricas */
-    .metric-card {
-      background-color: #ffffff;
-      padding: 1.5rem;
-      border-radius: 0.5rem;
-      box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
-    }
+h1, h2, h3, h4, h5, h6 {
+  font-weight: 700;
+  color: var(--foreground);
+}
 
-    .metric-card h3 {
-      color: #64748b; /* slate-500 */
-      font-size: 0.875rem;
-      font-weight: 500;
-      margin-bottom: 0.25rem;
-    }
+/* 3. Estilos de Componentes Personalizados (Complementando ShadCN/Tailwind) */
 
-    .metric-card p {
-      font-size: 1.875rem; /* 3xl */
-      font-weight: 700;
-      color: #0f172a; /* slate-900 */
-    }
+/* Estilo geral para Cards para dar um efeito de "levantar" no hover */
+.card-hover-effect {
+  transition: transform 0.2s ease-in-out, box-shadow 0.2s ease-in-out;
+}
+.card-hover-effect:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+}
 
-    .metric-card p.text-green-600 {
-      color: #22c55e;
-    }
+/* Estilos para os cabeçalhos de tabela que permitem ordenação */
+.th-style {
+    padding: 0.75rem 1.5rem;
+    text-align: left;
+    font-size: 0.75rem;
+    font-weight: 600;
+    color: var(--muted-foreground);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    transition: background-color 0.2s;
+}
 
-    .metric-card p.text-blue-600 {
-      color: #3b82f6;
-    }
+.th-style.cursor-pointer:hover {
+    background-color: var(--muted);
+}
 
-    /* Estilos para gráfico de dispersão */
-    .chart-container {
-      position: relative;
-      width: 100%;
-      max-width: 800px; /* Limita a largura máxima do gráfico */
-      margin-left: auto;
-      margin-right: auto;
-      height: 400px; /* Altura fixa para o gráfico */
-      max-height: 50vh; /* Máximo 50% da altura da viewport */
-    }
+/* Estilos para as células da tabela */
+.td-style {
+    padding: 1rem 1.5rem;
+    white-space: nowrap;
+    font-size: 0.875rem;
+}
 
-    @media (max-width: 768px) {
-      .chart-container {
-        height: 300px; /* Altura menor em dispositivos móveis */
-        max-height: 40vh;
-      }
-    }
+/* Estilo para os cards de métricas no dashboard e detalhes */
+.metric-card {
+  background-color: var(--card);
+  padding: 1rem;
+  border-radius: 0.75rem; /* Mais arredondado */
+  border: 1px solid var(--border);
+  transition: all 0.2s ease-in-out;
+}
 
-    /* Estilos para a barra de progresso do portfólio */
-    .progress-bar-container {
-      background-color: #e2e8f0; /* slate-200 */
-      border-radius: 9999px; /* Full rounded */
-      height: 0.75rem; /* h-3 */
-      overflow: hidden;
-      position: relative;
-    }
+.metric-card:hover {
+  border-color: var(--primary);
+  box-shadow: 0 4px 12px rgba(37, 99, 235, 0.1);
+}
 
-    .progress-bar-fill {
-      background-color: #3b82f6; /* blue-500 */
-      height: 100%;
-      border-radius: 9999px; /* Full rounded */
-      transition: width 0.5s ease-in-out;
-    }
-    
+.metric-card h3 {
+  color: var(--muted-foreground);
+  font-size: 0.875rem;
+  font-weight: 500;
+  margin-bottom: 0.5rem;
+}
+
+.metric-card p {
+  font-size: 1.5rem; /* 2xl */
+  font-weight: 700;
+  color: var(--foreground);
+}
+
+/* Cores de texto semânticas */
+.text-success { color: var(--success); }
+.text-destructive { color: var(--destructive); }
+.text-primary { color: var(--primary); }
+
+
+/* 4. Estilos para Gráficos */
+.chart-container {
+  position: relative;
+  width: 100%;
+  height: 400px;
+  max-height: 50vh;
+}
+
+@media (max-width: 768px) {
+  .chart-container {
+    height: 300px; /* Altura menor em dispositivos móveis */
+  }
+}
+
+/* Animação para o loader (a sua já estava boa, apenas centralizando) */
+.loader-container {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    padding: 2rem;
+    flex-direction: column;
+    gap: 1rem;
+    color: var(--primary);
+}
