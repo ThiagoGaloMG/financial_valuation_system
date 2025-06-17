@@ -33,6 +33,6 @@ def index():
     return "API do Sistema de Análise Financeira está no ar."
 
 if __name__ == '__main__':
-    port = int(os.environ.get('PORT', 5001))
-    logging.info(f"Iniciando servidor de desenvolvimento em http://0.0.0.0:{port}")
-    app.run(host='0.0.0.0', port=port, debug=True)
+    port = int(os.environ.get('PORT', 5000))  # A porta deve ser 5000 para combinar com o Dockerfile
+    logging.info(f"API iniciando em http://0.0.0.0:{port}")
+    app.run(host='0.0.0.0', port=port)
