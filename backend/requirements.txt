@@ -1,20 +1,20 @@
 # backend/requirements.txt
 
 # Dependências principais da aplicação Flask
-Flask==2.2.5
-Flask-Cors==3.0.10
-gunicorn==21.2.0 # Servidor WSGI para produção
+Flask==3.0.3
+Flask-Cors==4.0.1
+gunicorn==22.0.0 # Servidor WSGI para produção
 
 # Bibliotecas de análise financeira e coleta de dados
-pandas==1.5.3
-numpy==1.23.5
-yfinance>=0.2.54,<0.3
-requests==2.31.0
+pandas==2.2.2
+numpy==1.26.4
+yfinance==0.2.40
+requests==2.32.3
 beautifulsoup4==4.12.3
-scikit-learn==1.2.2 # Para AdvancedRanking (KMeans, StandardScaler)
+scikit-learn==1.4.2 # Para AdvancedRanking (KMeans, StandardScaler)
 
 # Logging (já incluído no Python, mas para garantir)
 # Se precisar de um logger mais robusto, pode adicionar 'loguru' ou similar.
 
-psycopg2-binary>=2.9.9 # Ou a versão mais recente que o Render/ambiente aceite
-python-dotenv>=1.0.1  # Útil para testes locais futuros, mas o Render não precisa para injetar as variáveis
+psycopg2-binary==2.9.9 # Ou a versão mais recente que o Render/ambiente aceite
+python-dotenv==1.0.1  # Útil para testes locais futuros, mas o Render não precisa para injetar as variáveis
