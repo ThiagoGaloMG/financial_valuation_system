@@ -1,14 +1,13 @@
 # backend/src/financial_analyzer_dataclass.py
+# Este arquivo contém apenas a definição da estrutura de dados CompanyFinancialData
+# para evitar importações circulares.
 
 from dataclasses import dataclass
 from typing import Optional
 
 @dataclass
 class CompanyFinancialData:
-    """
-    Estrutura para armazenar todos os dados financeiros e de mercado de uma empresa.
-    Isolada neste arquivo para evitar problemas de importação circular.
-    """
+    """Classe para armazenar dados financeiros de uma empresa."""
     ticker: str
     company_name: str
     market_cap: float
