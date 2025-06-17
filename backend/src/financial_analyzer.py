@@ -5,40 +5,18 @@ import numpy as np
 import yfinance as yf
 import requests
 from typing import Dict, List, Optional, Tuple
-from dataclasses import dataclass
 import logging
 import time
 
-# Importa os dados de exemplo para usar como fallback
+# --- CORREÇÃO PRINCIPAL ---
+# Importa a classe do novo arquivo dedicado e os dados de exemplo.
+from financial_analyzer_dataclass import CompanyFinancialData
 from sample_data import sample_financial_data
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s [%(levelname)s] - %(message)s')
 logger = logging.getLogger(__name__)
 
-@dataclass
-class CompanyFinancialData:
-    ticker: str
-    company_name: str
-    market_cap: float
-    stock_price: float
-    shares_outstanding: float
-    revenue: float
-    ebit: float
-    net_income: float
-    depreciation_amortization: float
-    capex: float
-    total_assets: float
-    total_debt: float
-    equity: float
-    current_assets: float
-    current_liabilities: float
-    cash: float
-    accounts_receivable: float
-    inventory: float
-    accounts_payable: float
-    property_plant_equipment: Optional[float] = None
-    sector: Optional[str] = None
-
+# A definição da classe CompanyFinancialData foi movida para seu próprio arquivo.
 
 class FinancialDataCollector:
     def __init__(self):
@@ -58,7 +36,7 @@ class FinancialDataCollector:
             info = stock.info
             
             # Validação crucial: se não houver 'marketCap', a coleta falhou.
-            if not info or 'marketCap' not in info or info['marketCap'] is None:
+            if not info or info.get('marketCap') is None:
                 raise ValueError(f"Informações básicas (info) inválidas ou não encontradas para {ticker}")
 
             financials = stock.quarterly_financials
@@ -69,9 +47,7 @@ class FinancialDataCollector:
                 raise ValueError(f"Uma ou mais demonstrações financeiras estão vazias para {ticker}")
 
             latest_date = financials.columns[0]
-            fin_data = financials[latest_date]
-            bs_data = balance_sheet[latest_date]
-            cf_data = cash_flow[latest_date]
+            fin_data, bs_data, cf_data = financials[latest_date], balance_sheet[latest_date], cash_flow[latest_date]
             
             logger.info(f"Sucesso ao coletar dados para {ticker} via yfinance.")
             return CompanyFinancialData(
