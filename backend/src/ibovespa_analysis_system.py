@@ -4,7 +4,7 @@ import pandas as pd
 import numpy as np
 import json
 import logging
-from datetime import datetime, timedelta
+from datetime import datetime
 from typing import Dict, List, Optional, Any
 
 from ibovespa_data import get_ibovespa_tickers, get_selic_rate
@@ -26,8 +26,7 @@ logger = logging.getLogger(__name__)
 class IbovespaAnalysisSystem:
     """
     Sistema de Análise Financeira completo para o Ibovespa.
-    Orquestra a coleta de dados, cálculos de métricas (EVA, EFV, Riqueza),
-    classificação de empresas e identificação de oportunidades.
+    Orquestra a coleta de dados, cálculos de métricas e identificação de oportunidades.
     """
 
     def __init__(self):
@@ -51,22 +50,14 @@ class IbovespaAnalysisSystem:
         self.db = SupabaseDB()
 
     def _get_companies_data(self, tickers: Optional[List[str]] = None) -> Dict[str, CompanyFinancialData]:
-        """Coleta dados para uma lista de tickers, usando o banco de dados como cache."""
+        """
+        Coleta dados para uma lista de tickers. A lógica de fallback (yfinance -> sample_data)
+        já está dentro do FinancialDataCollector.
+        """
         tickers_to_process = tickers if tickers is not None else self.ibovespa_tickers
         
-        companies_data = {}
-        for ticker in tickers_to_process:
-            # Lógica para usar dados do DB se forem recentes foi removida para simplificar
-            # e focar no fluxo principal de coleta e fallback.
-            # Em uma versão futura, a lógica de cache pode ser reintroduzida aqui.
-            logger.info(f"Coletando dados para {ticker}.")
-            self.monitor.start_timer(f"coleta_yfinance_{ticker}")
-            data = self.collector.get_company_data(ticker)
-            self.monitor.end_timer(f"coleta_yfinance_{ticker}")
-            if data:
-                companies_data[ticker] = data
-            else:
-                logger.warning(f"Não foi possível coletar dados para {ticker}.")
+        logger.info(f"Iniciando coleta de dados para {len(tickers_to_process)} tickers.")
+        companies_data = self.collector.get_multiple_companies(tickers_to_process)
         return companies_data
 
     def run_complete_analysis(self, num_companies: Optional[int] = None) -> Dict:
@@ -74,7 +65,7 @@ class IbovespaAnalysisSystem:
         self.monitor.start_timer("analise_completa_ibovespa")
         
         tickers_to_use = self.ibovespa_tickers
-        if num_companies is not None and num_companies > 0:
+        if num_companies is not None and 0 < num_companies < len(self.ibovespa_tickers):
             tickers_to_use = self.ibovespa_tickers[:num_companies]
             logger.info(f"Executando análise rápida para as primeiras {num_companies} empresas.")
         else:
@@ -83,28 +74,25 @@ class IbovespaAnalysisSystem:
         companies_data = self._get_companies_data(tickers=tickers_to_use)
 
         if not companies_data:
-            return {"status": "error", "message": "Nenhum dado coletado para análise."}
+            return {"status": "error", "message": "Nenhum dado foi coletado para a análise."}
 
-        # Gerar o DataFrame com todas as métricas calculadas
         logger.info("Gerando relatório de métricas para todas as empresas...")
         report_df = self.company_ranking.generate_ranking_report(companies_data)
 
         if report_df.empty:
-            return {"status": "error", "message": "Relatório de métricas está vazio."}
+            return {"status": "error", "message": "O relatório de métricas está vazio."}
 
-        # Salvar métricas individuais no DB
-        for ticker_key, company_data_obj in companies_data.items():
-            if not report_df[report_df['ticker'] == ticker_key].empty:
-                metrics_for_db = report_df[report_df['ticker'] == ticker_key].iloc[0].to_dict()
+        # Salvar métricas individuais no banco de dados
+        for ticker, company_data_obj in companies_data.items():
+            if not report_df[report_df['ticker'] == ticker].empty:
+                metrics_for_db = report_df[report_df['ticker'] == ticker].iloc[0].to_dict()
+                # Adiciona o dicionário completo de dados brutos para persistência
                 metrics_for_db['raw_data'] = clean_data_for_json(vars(company_data_obj))
                 self.db.save_company_metrics(company_data_obj, metrics_for_db)
 
-        # Rankings e Oportunidades
+        # Gerar análises avançadas
         opportunities = self.advanced_ranking.identify_opportunities(companies_data)
-        portfolio_weights = self.portfolio_optimizer.suggest_portfolio_allocation(companies_data, 'moderate')
-        portfolio_eva_abs, portfolio_eva_pct = self.portfolio_optimizer.calculate_portfolio_eva(portfolio_weights, companies_data)
-
-        # Construir o relatório final
+        
         final_report = {
             "status": "success",
             "timestamp": datetime.now().isoformat(),
@@ -113,15 +101,7 @@ class IbovespaAnalysisSystem:
                 "positive_eva_count": int((report_df['eva_percentual'] > 0).sum()),
                 "positive_efv_count": int((report_df['efv_percentual'] > 0).sum()),
             },
-            "rankings": {
-                "top_10_combined": report_df.sort_values(by='combined_score', ascending=False).head(10).to_dict(orient='records')
-            },
             "opportunities": opportunities,
-            "portfolio_suggestion": {
-                "weights": portfolio_weights,
-                "portfolio_eva_abs": portfolio_eva_abs,
-                "portfolio_eva_pct": portfolio_eva_pct
-            },
             "full_report_data": report_df.to_dict(orient='records')
         }
         
@@ -148,12 +128,9 @@ class IbovespaAnalysisSystem:
             upside = self.calculator.calculate_upside(company_data, efv_abs) if not np.isnan(efv_abs) else np.nan
             
             result = {
-                "status": "success",
-                "ticker": company_data.ticker,
-                "company_name": company_data.company_name,
+                "status": "success", "ticker": company_data.ticker, "company_name": company_data.company_name,
                 "metrics": {
-                    "market_cap": company_data.market_cap,
-                    "stock_price": company_data.stock_price,
+                    "market_cap": company_data.market_cap, "stock_price": company_data.stock_price,
                     "wacc_percentual": wacc * 100 if not np.isnan(wacc) else None,
                     "eva_abs": eva_abs, "eva_percentual": eva_pct,
                     "efv_abs": efv_abs, "efv_percentual": efv_pct,
