@@ -18,8 +18,8 @@ logger = logging.getLogger(__name__)
 
 class FinancialDataCollector:
     def __init__(self):
-        self.retry_wait_seconds = 1
-        self.max_retries = 3
+        self.retry_wait_seconds = 10
+        self.max_retries = 10
 
     def get_company_data(self, ticker: str) -> Optional[CompanyFinancialData]:
         """
