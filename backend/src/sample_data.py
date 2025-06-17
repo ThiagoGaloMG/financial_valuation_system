@@ -2,13 +2,9 @@
 # Este arquivo contém dados de exemplo para garantir que a aplicação
 # funcione mesmo se as fontes externas (yfinance) estiverem bloqueando requisições.
 
-# É preciso importar a classe para que os objetos possam ser criados
-try:
-    from financial_analyzer import CompanyFinancialData
-except ImportError:
-    # Fallback para o caso de o script ser executado de forma isolada,
-    # embora na aplicação principal a primeira importação deva funcionar.
-    from .financial_analyzer import CompanyFinancialData
+# --- CORREÇÃO PRINCIPAL ---
+# A importação agora vem do arquivo dedicado, quebrando a dependência circular.
+from financial_analyzer_dataclass import CompanyFinancialData
 
 # Dados de exemplo para algumas das principais empresas do Ibovespa.
 # Os valores são representativos e servem para demonstração.
