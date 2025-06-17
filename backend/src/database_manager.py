@@ -1,331 +1,120 @@
 # backend/src/database_manager.py
+# Módulo centralizado para todas as interações com o banco de dados Supabase (PostgreSQL).
 
 import psycopg2
 import os
 import json
 import logging
-from datetime import datetime
-from typing import Optional, Dict, Any, List
-from financial_analyzer_dataclass import CompanyFinancialData  # certifique-se de importar do módulo correto
+from datetime import datetime, timedelta, timezone
+from typing import Optional, Dict, Any
 
+# Configura um logger específico para este módulo.
 logger = logging.getLogger(__name__)
 
-class SupabaseDB:
+class DatabaseManager:
+    """
+    Gerencia a conexão e as operações com o banco de dados PostgreSQL (Supabase).
+    Esta classe abstrai toda a lógica de banco de dados, atuando como uma camada
+    de persistência para a aplicação.
+    """
     def __init__(self):
         """
-        Inicializa a conexão com Supabase/Postgres.
-        A string de conexão é obtida da variável de ambiente DATABASE_URL.
-        Opcionalmente, pode-se usar pool de conexões aqui.
+        Inicializa o gerenciador de banco de dados.
+        Constrói a string de conexão a partir das variáveis de ambiente,
+        que serão injetadas pelo Render no ambiente de produção.
         """
-        self.conn_string = os.environ.get("DATABASE_URL")
-        if not self.conn_string:
-            logger.error("DATABASE_URL não configurada no ambiente. Conexão ao DB falhará.")
-            # Poderíamos lançar um erro aqui para falhar cedo:
-            # raise RuntimeError("DATABASE_URL não configurada")
-        # Exemplo de pool (opcional):
-        # from psycopg2.pool import SimpleConnectionPool
-        # try:
-        #     self.pool = SimpleConnectionPool(minconn=1, maxconn=10, dsn=self.conn_string)
-        # except Exception as e:
-        #     logger.error(f"Erro ao criar pool de conexões: {e}")
-        #     self.pool = None
+        try:
+            # Constrói a string de conexão a partir de variáveis de ambiente individuais.
+            # Este é o método recomendado para plataformas como o Render.
+            self.conn_string = (
+                f"dbname='{os.environ.get('DB_NAME')}' "
+                f"user='{os.environ.get('DB_USER')}' "
+                f"host='{os.environ.get('DB_HOST')}' "
+                f"password='{os.environ.get('DB_PASSWORD')}' "
+                f"port='{os.environ.get('DB_PORT', 5432)}'" # Usa 5432 como porta padrão
+            )
+            # Verifica se alguma variável essencial está faltando
+            if not all([os.environ.get('DB_NAME'), os.environ.get('DB_USER'), os.environ.get('DB_HOST'), os.environ.get('DB_PASSWORD')]):
+                raise TypeError("Uma ou mais variáveis de ambiente do banco de dados não estão definidas.")
+
+        except TypeError as e:
+            logger.critical(f"CREDENCIAIS DO BANCO DE DADOS INCOMPLETAS: {e}. O DatabaseManager não poderá se conectar.")
+            self.conn_string = None
 
     def _get_connection(self):
         """
-        Estabelece e retorna uma conexão com o banco de dados.
-        Pode-se adicionar parâmetros como connect_timeout.
-        Se usar pool, retorna conexão do pool.
+        Estabelece e retorna uma nova conexão com o banco de dados.
+        Lança um erro se a string de conexão não estiver disponível.
         """
         if not self.conn_string:
-            raise RuntimeError("DATABASE_URL não configurada")
+            raise ConnectionError("A string de conexão com o banco de dados não está disponível. Verifique as variáveis de ambiente.")
+        
+        # O timeout evita que a aplicação fique presa indefinidamente ao tentar conectar.
+        return psycopg2.connect(self.conn_string, connect_timeout=10)
+
+    def get_latest_analysis_report(self, max_age_hours: int = 12) -> Optional[Dict[str, Any]]:
+        """
+        Busca o relatório de análise mais recente. Atua como um cache.
+        Retorna o relatório (como um dicionário Python) se ele for recente, 
+        caso contrário retorna None.
+
+        Args:
+            max_age_hours: O tempo máximo em horas que um relatório é considerado válido.
+        """
+        # SQL para buscar o dado JSON do relatório mais recente dentro do tempo limite.
+        sql = "SELECT report_data FROM public.analysis_reports WHERE created_at > %s ORDER BY created_at DESC LIMIT 1;"
+        
+        if not self.conn_string: 
+            logger.warning("Não foi possível buscar relatório pois a conexão com o DB não está configurada.")
+            return None
+        
         try:
-            # Exemplo com timeout de 10s:
-            conn = psycopg2.connect(self.conn_string, connect_timeout=10)
-            return conn
-            # Se usar pool:
-            # if self.pool:
-            #     return self.pool.getconn()
-            # else:
-            #     return psycopg2.connect(self.conn_string, connect_timeout=10)
+            # A utilização do 'with' garante que a conexão será fechada automaticamente.
+            with self._get_connection() as conn:
+                with conn.cursor() as cur:
+                    # Calcula o tempo limite para o cache (agora - max_age_hours)
+                    time_threshold = datetime.now(timezone.utc) - timedelta(hours=max_age_hours)
+                    
+                    cur.execute(sql, (time_threshold,))
+                    latest_report = cur.fetchone()
+
+                    if latest_report:
+                        logger.info(f"Relatório recente (com menos de {max_age_hours}h) encontrado no cache do DB.")
+                        # O resultado da query já é um dicionário Python pois psycopg2 lida com JSONB.
+                        return latest_report[0]
+                    else:
+                        logger.info("Nenhum relatório recente encontrado no cache do DB. Uma nova análise será necessária.")
+                        return None
+        except psycopg2.Error as e:
+            logger.error(f"Erro de banco de dados ao buscar relatório: {e}", exc_info=True)
         except Exception as e:
-            logger.error(f"Erro ao conectar ao Supabase: {e}")
-            raise
+            logger.error(f"Erro inesperado ao buscar relatório no DB: {e}", exc_info=True)
+            
+        return None
 
-    def _close_connection(self, conn):
+    def save_analysis_report(self, report_data: Dict[str, Any]) -> None:
         """
-        Fecha a conexão ou devolve ao pool.
+        Salva um novo relatório de análise (um grande objeto JSON) no banco de dados.
+
+        Args:
+            report_data: Um dicionário Python contendo todos os dados do relatório a serem salvos.
         """
+        sql = "INSERT INTO public.analysis_reports (report_data) VALUES (%s);"
+        
+        if not self.conn_string:
+            logger.error("Não foi possível salvar relatório pois a conexão com o DB não está configurada.")
+            return
+
         try:
-            # if hasattr(self, 'pool') and self.pool:
-            #     self.pool.putconn(conn)
-            # else:
-            conn.close()
+            with self._get_connection() as conn:
+                with conn.cursor() as cur:
+                    # O psycopg2 converte o dicionário Python para o formato JSONB do PostgreSQL
+                    # ao passar o dicionário como um parâmetro para json.dumps.
+                    cur.execute(sql, (json.dumps(report_data),))
+                # O 'with' statement faz o commit da transação aqui, se não houver erros.
+                logger.info("Novo relatório de análise salvo com sucesso no banco de dados.")
+        except psycopg2.Error as e:
+            logger.error(f"Erro de banco de dados ao salvar relatório: {e}", exc_info=True)
+            # O 'with' statement fará o rollback da transação em caso de erro.
         except Exception as e:
-            logger.warning(f"Erro ao fechar conexão: {e}")
-
-    def save_analysis_report(self, report_data: Dict[str, Any]) -> Optional[str]:
-        """
-        Salva os dados de um relatório de análise completo no banco de dados.
-        Retorna o ID (UUID string) inserido, ou None em caso de falha.
-        Campos esperados em report_data:
-         - report_name (str)
-         - report_type (str)
-         - execution_time_seconds (numérico)
-         - summary_statistics (dict)
-         - full_report_data (list/dict)
-        """
-        conn = None
-        try:
-            conn = self._get_connection()
-            with conn.cursor() as cur:
-                # Extrai dados do report_data para a tabela analysis_reports
-                report_name = report_data.get('report_name', 'Análise Não Especificada')
-                report_type = report_data.get('report_type', 'unknown')
-                execution_time_seconds = report_data.get('execution_time_seconds')
-
-                # Assegura que o JSONB seja um string JSON
-                summary_obj = report_data.get('summary_statistics', {})
-                full_ranking_obj = report_data.get('full_report_data', [])
-
-                report_summary_json = json.dumps(summary_obj)
-                full_ranking_data_json = json.dumps(full_ranking_obj)
-
-                cur.execute(
-                    """
-                    INSERT INTO public.analysis_reports (
-                        report_name, report_summary, full_ranking_data, report_type, execution_time_seconds
-                    ) VALUES (%s, %s::jsonb, %s::jsonb, %s, %s)
-                    RETURNING id;
-                    """,
-                    (report_name, report_summary_json, full_ranking_data_json, report_type, execution_time_seconds)
-                )
-                row = cur.fetchone()
-                conn.commit()
-                if row:
-                    report_id = row[0]
-                    logger.info(f"Relatório de análise '{report_name}' salvo com ID: {report_id}")
-                    return str(report_id)
-                else:
-                    logger.error("Nenhum ID retornado ao salvar relatório de análise.")
-                    return None
-        except Exception:
-            if conn:
-                conn.rollback()
-            logger.exception("Erro ao salvar relatório no Supabase")
-            return None
-        finally:
-            if conn:
-                self._close_connection(conn)
-
-    def save_company_metrics(
-        self,
-        company_data_obj: CompanyFinancialData,
-        metrics_data_dict: Dict[str, Any],
-        analysis_date: Optional[datetime] = None
-    ) -> Optional[str]:
-        """
-        Salva as métricas calculadas para uma única empresa.
-        Retorna ID do registro em financial_metrics (UUID string) ou None.
-        Parâmetros:
-         - company_data_obj: instância de CompanyFinancialData, com atributos ticker, company_name, sector, etc.
-         - metrics_data_dict: dicionário com chaves: market_cap, stock_price, wacc_percentual, eva_abs, eva_percentual,
-           efv_abs, efv_percentual, riqueza_atual, riqueza_futura, upside_percentual, combined_score, raw_data (dict opcional).
-         - analysis_date: datetime para persistir (padrão: agora).
-        """
-        conn = None
-        try:
-            conn = self._get_connection()
-            with conn.cursor() as cur:
-                # 1. Inserir ou atualizar na tabela companies (para garantir que a empresa existe)
-                cur.execute(
-                    """
-                    INSERT INTO public.companies (ticker, company_name, sector, last_updated)
-                    VALUES (%s, %s, %s, now())
-                    ON CONFLICT (ticker) DO UPDATE SET
-                        company_name = EXCLUDED.company_name,
-                        sector = EXCLUDED.sector,
-                        last_updated = now()
-                    RETURNING id;
-                    """,
-                    (company_data_obj.ticker, company_data_obj.company_name, getattr(company_data_obj, 'sector', None))
-                )
-                row = cur.fetchone()
-                if not row:
-                    raise RuntimeError("Falha ao obter ID da tabela companies após upsert")
-                company_id = row[0]
-
-                # 2. Inserir ou atualizar métricas financeiras na tabela financial_metrics
-                # analysis_date: se não passado, usa agora()
-                dt = analysis_date or datetime.now()
-                # Serializar raw_data
-                raw_data = metrics_data_dict.get('raw_data', {})
-                raw_data_json = json.dumps(raw_data) if raw_data is not None else None
-
-                cur.execute(
-                    """
-                    INSERT INTO public.financial_metrics (
-                        company_id, analysis_date, market_cap, stock_price,
-                        wacc_percentual, eva_abs, eva_percentual, efv_abs, efv_percentual,
-                        riqueza_atual, riqueza_futura, upside_percentual, combined_score, raw_data
-                    ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s::jsonb)
-                    ON CONFLICT (company_id, analysis_date) DO UPDATE SET
-                        market_cap = EXCLUDED.market_cap,
-                        stock_price = EXCLUDED.stock_price,
-                        wacc_percentual = EXCLUDED.wacc_percentual,
-                        eva_abs = EXCLUDED.eva_abs,
-                        eva_percentual = EXCLUDED.eva_percentual,
-                        efv_abs = EXCLUDED.efv_abs,
-                        efv_percentual = EXCLUDED.efv_percentual,
-                        riqueza_atual = EXCLUDED.riqueza_atual,
-                        riqueza_futura = EXCLUDED.riqueza_futura,
-                        upside_percentual = EXCLUDED.upside_percentual,
-                        combined_score = EXCLUDED.combined_score,
-                        raw_data = EXCLUDED.raw_data
-                    RETURNING id;
-                    """,
-                    (
-                        company_id,
-                        dt,
-                        metrics_data_dict.get('market_cap'),
-                        metrics_data_dict.get('stock_price'),
-                        metrics_data_dict.get('wacc_percentual'),
-                        metrics_data_dict.get('eva_abs'),
-                        metrics_data_dict.get('eva_percentual'),
-                        metrics_data_dict.get('efv_abs'),
-                        metrics_data_dict.get('efv_percentual'),
-                        metrics_data_dict.get('riqueza_atual'),
-                        metrics_data_dict.get('riqueza_futura'),
-                        metrics_data_dict.get('upside_percentual'),
-                        metrics_data_dict.get('combined_score'),
-                        raw_data_json
-                    )
-                )
-                row2 = cur.fetchone()
-                conn.commit()
-                if row2:
-                    metric_id = row2[0]
-                    logger.info(f"Métricas para {company_data_obj.ticker} salvas/atualizadas com ID: {metric_id}")
-                    return str(metric_id)
-                else:
-                    logger.warning("Nenhum ID retornado ao inserir métricas financeiras.")
-                    return None
-        except Exception:
-            if conn:
-                conn.rollback()
-            logger.exception(f"Erro ao salvar métricas da empresa {company_data_obj.ticker} no Supabase")
-            return None
-        finally:
-            if conn:
-                self._close_connection(conn)
-
-    def get_latest_full_analysis_report(self) -> Optional[Dict[str, Any]]:
-        """
-        Busca o relatório de análise completa mais recente do banco de dados.
-        Retorna dict com chaves:
-         - status, timestamp, total_companies_analyzed, summary_statistics, full_report_data, report_name, report_type, execution_time_seconds
-        Ou None se não houver ou em caso de erro.
-        """
-        conn = None
-        try:
-            conn = self._get_connection()
-            with conn.cursor() as cur:
-                cur.execute(
-                    """
-                    SELECT report_summary, full_ranking_data, report_date, execution_time_seconds, report_name, report_type
-                    FROM public.analysis_reports
-                    ORDER BY report_date DESC
-                    LIMIT 1;
-                    """
-                )
-                result = cur.fetchone()
-                if not result:
-                    return None
-
-                summary_json, ranking_json, report_date, exec_time, report_name, report_type = result
-                # Se for dict já, json.loads não é necessário; mas mantemos compatibilidade
-                summary = json.loads(summary_json) if isinstance(summary_json, str) else summary_json
-                ranking = json.loads(ranking_json) if isinstance(ranking_json, str) else ranking_json
-
-                return {
-                    "status": "success",
-                    "timestamp": report_date.isoformat() if hasattr(report_date, 'isoformat') else str(report_date),
-                    "total_companies_analyzed": summary.get('total_companies_analyzed', 0),
-                    "summary_statistics": summary,
-                    "full_report_data": ranking,
-                    "report_name": report_name,
-                    "report_type": report_type,
-                    "execution_time_seconds": float(exec_time) if exec_time is not None else None
-                }
-        except Exception:
-            logger.exception("Erro ao buscar relatório completo mais recente do Supabase")
-            return None
-        finally:
-            if conn:
-                self._close_connection(conn)
-
-    def get_company_latest_metrics(self, ticker: str) -> Optional[Dict[str, Any]]:
-        """
-        Busca as métricas mais recentes de uma empresa específica.
-        Retorna dict com estrutura similar ao endpoint /company/<ticker>.
-        Ou None se não encontrado ou em caso de erro.
-        """
-        conn = None
-        try:
-            conn = self._get_connection()
-            with conn.cursor() as cur:
-                cur.execute(
-                    """
-                    SELECT
-                        fm.market_cap, fm.stock_price, fm.wacc_percentual, fm.eva_abs, fm.eva_percentual,
-                        fm.efv_abs, fm.efv_percentual, fm.riqueza_atual, fm.riqueza_futura,
-                        fm.upside_percentual, fm.combined_score, fm.raw_data, c.company_name, c.ticker
-                    FROM public.financial_metrics fm
-                    JOIN public.companies c ON fm.company_id = c.id
-                    WHERE c.ticker = %s
-                    ORDER BY fm.analysis_date DESC
-                    LIMIT 1;
-                    """,
-                    (ticker,)
-                )
-                result = cur.fetchone()
-                if not result:
-                    return None
-
-                (
-                    market_cap, stock_price, wacc_pct, eva_abs, eva_pct, efv_abs, efv_pct,
-                    riqueza_atual, riqueza_futura, upside_pct, combined_score, raw_data_json,
-                    company_name, ticker_from_db
-                ) = result
-
-                raw_data = None
-                if raw_data_json is not None:
-                    try:
-                        raw_data = json.loads(raw_data_json) if isinstance(raw_data_json, str) else raw_data_json
-                    except Exception:
-                        logger.warning(f"Falha ao desserializar raw_data JSON para {ticker}")
-
-                return {
-                    "status": "success",
-                    "ticker": ticker_from_db,
-                    "company_name": company_name,
-                    "metrics": {
-                        "market_cap": float(market_cap) if market_cap is not None else None,
-                        "stock_price": float(stock_price) if stock_price is not None else None,
-                        "wacc_percentual": float(wacc_pct) if wacc_pct is not None else None,
-                        "eva_abs": float(eva_abs) if eva_abs is not None else None,
-                        "eva_percentual": float(eva_pct) if eva_pct is not None else None,
-                        "efv_abs": float(efv_abs) if efv_abs is not None else None,
-                        "efv_percentual": float(efv_pct) if efv_pct is not None else None,
-                        "riqueza_atual": float(riqueza_atual) if riqueza_atual is not None else None,
-                        "riqueza_futura": float(riqueza_futura) if riqueza_futura is not None else None,
-                        "upside_percentual": float(upside_pct) if upside_pct is not None else None,
-                        "combined_score": float(combined_score) if combined_score is not None else None,
-                        "raw_data": raw_data
-                    }
-                }
-        except Exception:
-            logger.exception(f"Erro ao buscar métricas da empresa {ticker} no Supabase")
-            return None
-        finally:
-            if conn:
-                self._close_connection(conn)
+            logger.error(f"Erro inesperado ao salvar relatório no DB: {e}", exc_info=True)
