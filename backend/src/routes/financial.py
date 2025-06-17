@@ -13,8 +13,6 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')
 
 from ibovespa_analysis_system import IbovespaAnalysisSystem
 from utils import clean_data_for_json
-# Importa a função específica que será usada neste arquivo
-from ibovespa_data import get_market_sectors
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s [%(levelname)s] - %(message)s')
 logger = logging.getLogger(__name__)
@@ -44,7 +42,6 @@ def health_check():
 @cross_origin()
 def run_analysis_endpoint():
     """Executa a análise completa ou rápida, recebendo os parâmetros via POST."""
-    # O Flask-CORS lida com a requisição preflight OPTIONS automaticamente quando o método é listado.
     if request.method == 'OPTIONS':
         return jsonify({'status': 'ok'}), 200
     
@@ -97,14 +94,3 @@ def get_companies_list():
     except Exception as e:
         logger.error(f"Erro em /companies: {e}", exc_info=True)
         return jsonify({"status": "error", "message": "Erro ao obter lista de empresas."}), 500
-
-@financial_bp.route('/market/sectors', methods=['GET'])
-@cross_origin()
-def get_market_sectors_api():
-    """Obtém os setores de mercado."""
-    try:
-        sectors = get_market_sectors()
-        return jsonify({'sectors': sectors}), 200
-    except Exception as e:
-        logger.error(f"Erro ao obter setores de mercado: {e}", exc_info=True)
-        return jsonify({'error': 'Erro interno ao carregar setores.'}), 500
