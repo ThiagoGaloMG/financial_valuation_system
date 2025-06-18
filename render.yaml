@@ -9,7 +9,7 @@ services:
     env: docker
     rootDir: backend
     dockerfilePath: ./Dockerfile
-    healthCheckPath: /api/v1/health # Rota para o Render verificar se a API está saudável
+    healthCheckPath: /api/v1/health  # Rota para o Render verificar se a API está saudável
     envVars:
       - key: PYTHON_VERSION
         value: 3.9.18
