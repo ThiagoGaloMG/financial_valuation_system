@@ -15,7 +15,6 @@ RUN apt-get update && apt-get install -y --no-install-recommends gcc build-essen
 COPY requirements.txt .
 RUN pip install --no-cache-dir --user -r requirements.txt
 
-
 # --- Estágio 2: Final ---
 # Este é o estágio final, que cria a imagem de produção.
 # Ele é baseado na mesma imagem leve, mas não contém as ferramentas de build.
@@ -45,4 +44,4 @@ EXPOSE 5000
 # Comando final para iniciar a aplicação usando Gunicorn.
 # O uso de 'exec' garante que o Gunicorn se torne o processo principal (PID 1),
 # o que melhora o gerenciamento de sinais (como parar o container).
-CMD ["exec", "gunicorn", "--workers", "4", "--threads", "2", "--bind", "0.0.0.0:5000", "main:app"]
+CMD ["gunicorn", "--workers", "4", "--threads", "2", "--bind", "0.0.0.0:5000", "main:app"]
