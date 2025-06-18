@@ -1,47 +1,47 @@
-# backend/render.yaml
+# render.yaml
+# Blueprint para deploy automático no Render.
+# Define os serviços de backend e frontend.
 
-# Versão do blueprint do Render
-apiVersion: services.render.com/v1alpha1
-kind: Blueprint
-
-# Nome do blueprint
-name: financial-valuation-system
-
-# Serviços definidos neste blueprint (backend e frontend)
 services:
-  # Configuração para o serviço de backend (API Flask)
-  - type: web # Tipo de serviço: web server
-    name: financial-valuation-backend # Nome do serviço no Render
-    env: python # Ambiente: Python
-    buildCommand: "pip install -r requirements.txt" # Comando para instalar dependências
-    startCommand: "gunicorn -w 4 --threads 2 -b 0.0.0.0:$PORT main:app" # Comando para iniciar o servidor Gunicorn
-    # Para usar o Dockerfile em vez do buildCommand/startCommand:
-    # dockerfilePath: Dockerfile
-    # healthCheckPath: /api/financial/health # Caminho para o health check da API
-    autoDeploy: true # Habilitar deploy automático para cada push no Git
-    plan: starter # Plano de serviço (starter, standard, etc.)
-    # Variáveis de ambiente (exemplo, adicione sua SECRET_KEY ou outras aqui)
+  # Serviço do Backend (API Flask em Docker)
+  - type: web
+    name: financial-valuation-backend
+    env: docker
+    rootDir: backend
+    dockerfilePath: ./Dockerfile
+    healthCheckPath: /api/v1/health  # Rota para o Render verificar se a API está saudável
     envVars:
-      - key: PYTHONUNBUFFERED # Garante que os logs do Python apareçam em tempo real
-        value: "1"
-      # - key: SECRET_KEY
-      #   value: "sua_secret_key_segura_aqui" # Use uma chave forte e secreta!
-      - key: FLASK_DEBUG
-        value: "False" # Sempre False em produção
+      - key: PYTHON_VERSION
+        value: 3.9.18
+      - key: POETRY_VERSION
+        value: 1.7.1
+      # IMPORTANTE: As credenciais do banco de dados DEVEM ser configuradas
+      # como "Secret Files" ou "Environment Variables" na UI do Render.
+      # NÃO coloque senhas aqui.
+      # - key: DB_HOST
+      #   fromSecret: db_host_secret
+      # - key: DB_PORT
+      #   fromSecret: db_port_secret
+      # - key: DB_USER
+      #   fromSecret: db_user_secret
+      # - key: DB_PASSWORD
+      #   fromSecret: db_password_secret
+      # - key: DB_NAME
+      #   fromSecret: db_name_secret
+    disk:
+      name: data
+      mountPath: /data
+      sizeGB: 1
 
-    # Repositório Git (Render detecta automaticamente se você usar "Sync your Git" para o Blueprint)
-    # repo: https://github.com/seu-usuario/seu-repositorio.git # Exemplo, Render preencherá
-    # branch: main # Branch para deploy
-
-  # Configuração para o serviço de frontend (Aplicação React)
-  - type: web # Tipo de serviço: web server
-    name: financial-valuation-frontend # Nome do serviço no Render
-    env: static # Ambiente: Servidor de arquivos estáticos
-    buildCommand: "npm install && npm run build" # Comandos para instalar dependências e construir o projeto React
-    staticPublishPath: dist # Diretório onde os arquivos de build do React serão servidos
-    autoDeploy: true # Habilitar deploy automático
-    plan: starter # Plano de serviço
-    # Não há necessidade de health check para static sites.
-    # repo: https://github.com/seu-usuario/seu-repositorio.git # Exemplo, Render preencherá
-    # branch: main # Branch para deploy
-
+  # Serviço do Frontend (Site Estático React)
+  - type: web
+    name: financial-valuation-frontend
+    env: static
+    rootDir: frontend
+    buildCommand: "npm install && npm run build"
+    staticPublishPath: ./dist
+    # Redireciona todas as chamadas para /api para o serviço de backend
+    routes:
+      - type: rewrite
+        source: /api/*
+        destination: https://financial-valuation-backend.onrender.com/api/*
