@@ -16,7 +16,7 @@ from sample_data import sample_financial_data
 from brapi_data_collector import BrapiDataCollector
 
 logger = logging.getLogger(__name__)
-logging.basicConfig(level=os.getenv("LOG_LEVEL", "INFO"), format=\'%(asctime)s [%(levelname)s] - %(message)s\')
+logging.basicConfig(level=os.getenv("LOG_LEVEL", "INFO"), format='%(asctime)s [%(levelname)s] - %(message)s')
 
 
 class FinancialDataCollector:
