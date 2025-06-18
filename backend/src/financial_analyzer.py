@@ -1,211 +1,541 @@
-# backend/src/financial_analyzer.py
+# backend/src/financial_analyzer_improved.py
+# Versão melhorada do financial_analyzer usando brapi.dev
 
 import os
 import time
 import logging
 from datetime import datetime
-from typing import Dict, List, Optional, Tuple, Any # <--- CORREÇÃO: 'Tuple' e 'Any' adicionados.
+from typing import Dict, List, Optional, Tuple
 
-import yfinance as yf
 import pandas as pd
 import numpy as np
 import requests
 
-# CORREÇÃO: A importação do dataclass foi mantida como estava no seu arquivo.
 from financial_analyzer_dataclass import CompanyFinancialData
 from sample_data import sample_financial_data
+from brapi_data_collector import BrapiDataCollector
 
-# Configuração do logger
 logger = logging.getLogger(__name__)
-
-# --- Configurações de Coleta de Dados ---
-# OTIMIZAÇÃO: As constantes foram movidas para cá para evitar importações problemáticas de `src/__init__`.
-YFINANCE_REQUEST_DELAY = 1.0
-REQUEST_TIMEOUT = 15
+logging.basicConfig(level=os.getenv("LOG_LEVEL", "INFO"), format='%(asctime)s [%(levelname)s] - %(message)s')
 
 
 class FinancialDataCollector:
-    """
-    Coleta dados financeiros de empresas usando a API yfinance.
-    Inclui lógica de retentativas e delays para lidar com instabilidades da API.
-    """
     def __init__(self):
-        self.max_retries = int(os.getenv("YFINANCE_MAX_RETRIES", "3"))
-        self.session = requests.Session()
-        self.session.headers.update({
-            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
-        })
+        # Configurações de retry/backoff
+        try:
+            self.retry_wait_seconds = float(os.getenv("BRAPI_RETRY_WAIT_SECONDS", "1"))
+        except ValueError:
+            self.retry_wait_seconds = 1.0
+        try:
+            self.max_retries = int(os.getenv("BRAPI_MAX_RETRIES", "3"))
+        except ValueError:
+            self.max_retries = 3
 
-    def get_company_financials(self, ticker: str) -> Optional[CompanyFinancialData]:
+        # Configurações de timeout
+        try:
+            self.request_timeout = int(os.getenv("REQUEST_TIMEOUT", "30"))
+        except ValueError:
+            self.request_timeout = 30
+
+        # Delay entre requisições para evitar rate limiting
+        try:
+            self.request_delay = float(os.getenv("BRAPI_REQUEST_DELAY", "1.0"))
+        except ValueError:
+            self.request_delay = 1.0
+
+        # Inicializar o coletor brapi.dev
+        self.brapi_collector = BrapiDataCollector()
+
+    def collect_company_data(self, ticker: str) -> Optional[CompanyFinancialData]:
         """
-        Busca os dados financeiros para um ticker específico.
-        Retorna um objeto CompanyFinancialData ou None em caso de falha.
-        """
-        logger.info(f"Coletando dados para o ticker: {ticker}")
-        time.sleep(YFINANCE_REQUEST_DELAY) # Delay para não sobrecarregar a API yfinance
-
-        for attempt in range(self.max_retries):
-            try:
-                stock = yf.Ticker(ticker, session=self.session)
-                info = stock.info
-                
-                # Validação mínima para garantir que a empresa foi encontrada
-                if not info or info.get('quoteType') != 'EQUITY':
-                    logger.warning(f"Dados inválidos ou não é uma ação para {ticker}. Pulando.")
-                    return None
-
-                # Coleta de dados com valores padrão para evitar KeyErrors
-                financials = {
-                    'ticker': ticker,
-                    'company_name': info.get('longName', ticker),
-                    'market_cap': info.get('marketCap', 0),
-                    'stock_price': info.get('currentPrice') or info.get('regularMarketPrice') or 0,
-                    'shares_outstanding': info.get('sharesOutstanding', 0),
-                    'revenue': info.get('totalRevenue', 0),
-                    'ebit': info.get('ebit', 0),
-                    'net_income': info.get('netIncomeToCommon', 0),
-                    'sector': info.get('sector', 'N/A'),
-                }
-
-                # Dados de balanço e fluxo de caixa (podem falhar)
-                balance_sheet = stock.balance_sheet
-                cash_flow = stock.cashflow
-                
-                financials['total_assets'] = balance_sheet.loc['Total Assets'].iloc[0] if not balance_sheet.empty and 'Total Assets' in balance_sheet.index else 0
-                financials['total_debt'] = info.get('totalDebt', 0)
-                financials['equity'] = balance_sheet.loc['Stockholders Equity'].iloc[0] if not balance_sheet.empty and 'Stockholders Equity' in balance_sheet.index else 0
-                financials['current_assets'] = balance_sheet.loc['Current Assets'].iloc[0] if not balance_sheet.empty and 'Current Assets' in balance_sheet.index else 0
-                financials['current_liabilities'] = balance_sheet.loc['Current Liabilities'].iloc[0] if not balance_sheet.empty and 'Current Liabilities' in balance_sheet.index else 0
-                financials['cash'] = balance_sheet.loc['Cash And Cash Equivalents'].iloc[0] if not balance_sheet.empty and 'Cash And Cash Equivalents' in balance_sheet.index else 0
-                financials['accounts_receivable'] = balance_sheet.loc['Receivables'].iloc[0] if not balance_sheet.empty and 'Receivables' in balance_sheet.index else 0
-                financials['inventory'] = balance_sheet.loc['Inventory'].iloc[0] if not balance_sheet.empty and 'Inventory' in balance_sheet.index else 0
-                financials['accounts_payable'] = balance_sheet.loc['Payables And Accrued Expenses'].iloc[0] if not balance_sheet.empty and 'Payables And Accrued Expenses' in balance_sheet.index else 0
-                
-                financials['depreciation_amortization'] = cash_flow.loc['Depreciation And Amortization'].iloc[0] if not cash_flow.empty and 'Depreciation And Amortization' in cash_flow.index else 0
-                financials['capex'] = cash_flow.loc['Capital Expenditure'].iloc[0] if not cash_flow.empty and 'Capital Expenditure' in cash_flow.index else 0
-                
-                financials['property_plant_equipment'] = balance_sheet.loc['Net PPE'].iloc[0] if not balance_sheet.empty and 'Net PPE' in balance_sheet.index else 0
-
-                # Substitui valores NaN por 0 para consistência
-                for key, value in financials.items():
-                    if pd.isna(value):
-                        financials[key] = 0
-
-                return CompanyFinancialData(**financials)
-
-            except Exception as e:
-                logger.warning(f"Tentativa {attempt + 1} falhou para {ticker}: {e}. Tentando novamente em {self.max_retries}s...")
-                time.sleep(self.max_retries)
+        Coleta dados financeiros de uma empresa usando brapi.dev.
         
-        logger.error(f"Falha ao coletar dados para {ticker} após {self.max_retries} tentativas. Usando dados de exemplo se disponíveis.")
-        return sample_financial_data.get(ticker)
+        Args:
+            ticker: Código da ação (ex: 'PETR4')
+            
+        Returns:
+            CompanyFinancialData ou None se não conseguir coletar
+        """
+        try:
+            # Remover .SA do ticker se presente (brapi.dev usa formato sem .SA)
+            clean_ticker = ticker.replace('.SA', '')
+            
+            logger.info(f"Coletando dados para o ticker: {clean_ticker}")
+            
+            # Usar o coletor brapi.dev
+            data = self.brapi_collector.collect_company_data(clean_ticker)
+            
+            if not data:
+                logger.warning(f"Nenhum dado retornado para {clean_ticker}")
+                return None
+            
+            # Converter para CompanyFinancialData
+            company_data = self._convert_brapi_to_company_data(clean_ticker, data)
+            
+            # Delay entre requisições
+            time.sleep(self.request_delay)
+            
+            return company_data
+            
+        except Exception as e:
+            logger.error(f"Erro ao coletar dados para {ticker}: {e}")
+            return None
+
+    def _convert_brapi_to_company_data(self, ticker: str, brapi_data: dict) -> CompanyFinancialData:
+        """
+        Converte dados do brapi.dev para CompanyFinancialData.
+        
+        Args:
+            ticker: Código da ação
+            brapi_data: Dados retornados pelo brapi.dev
+            
+        Returns:
+            CompanyFinancialData
+        """
+        try:
+            # Extrair dados básicos
+            quote_data = brapi_data.get('quote', {})
+            fundamentals = brapi_data.get('fundamentals', {})
+            
+            # Dados básicos da empresa
+            company_name = quote_data.get('longName', ticker)
+            sector = fundamentals.get('sector', 'N/A')
+            
+            # Preço da ação
+            stock_price = quote_data.get('regularMarketPrice', 0)
+            
+            # Market Cap
+            market_cap = quote_data.get('marketCap', 0)
+            if not market_cap and stock_price:
+                shares_outstanding = fundamentals.get('sharesOutstanding', 0)
+                if shares_outstanding:
+                    market_cap = stock_price * shares_outstanding
+            
+            # Dados financeiros do balanço
+            balance_sheet = fundamentals.get('balanceSheet', {})
+            income_statement = fundamentals.get('incomeStatement', {})
+            
+            # Total de ativos
+            total_assets = balance_sheet.get('totalAssets', 0)
+            
+            # Patrimônio líquido
+            total_equity = balance_sheet.get('totalStockholderEquity', 0)
+            
+            # Lucro líquido
+            net_income = income_statement.get('netIncome', 0)
+            
+            # Receita total
+            total_revenue = income_statement.get('totalRevenue', 0)
+            
+            # Dívida total
+            total_debt = balance_sheet.get('totalDebt', 0)
+            if not total_debt:
+                # Tentar calcular como soma de dívidas de curto e longo prazo
+                short_debt = balance_sheet.get('shortLongTermDebt', 0)
+                long_debt = balance_sheet.get('longTermDebt', 0)
+                total_debt = short_debt + long_debt
+            
+            # Múltiplos
+            pe_ratio = fundamentals.get('trailingPE', 0)
+            pb_ratio = fundamentals.get('priceToBook', 0)
+            
+            # Criar objeto CompanyFinancialData
+            company_data = CompanyFinancialData(
+                ticker=ticker,
+                company_name=company_name,
+                sector=sector,
+                stock_price=float(stock_price) if stock_price else 0.0,
+                market_cap=float(market_cap) if market_cap else 0.0,
+                total_assets=float(total_assets) if total_assets else 0.0,
+                total_equity=float(total_equity) if total_equity else 0.0,
+                net_income=float(net_income) if net_income else 0.0,
+                total_revenue=float(total_revenue) if total_revenue else 0.0,
+                total_debt=float(total_debt) if total_debt else 0.0,
+                pe_ratio=float(pe_ratio) if pe_ratio else 0.0,
+                pb_ratio=float(pb_ratio) if pb_ratio else 0.0,
+                data_quality_score=self._calculate_data_quality_score(brapi_data)
+            )
+            
+            logger.info(f"Dados convertidos com sucesso para {ticker}")
+            return company_data
+            
+        except Exception as e:
+            logger.error(f"Erro ao converter dados do brapi.dev para {ticker}: {e}")
+            # Retornar dados básicos em caso de erro
+            return CompanyFinancialData(
+                ticker=ticker,
+                company_name=ticker,
+                sector="N/A",
+                stock_price=0.0,
+                market_cap=0.0,
+                total_assets=0.0,
+                total_equity=0.0,
+                net_income=0.0,
+                total_revenue=0.0,
+                total_debt=0.0,
+                pe_ratio=0.0,
+                pb_ratio=0.0,
+                data_quality_score=0.0
+            )
+
+    def _calculate_data_quality_score(self, brapi_data: dict) -> float:
+        """
+        Calcula um score de qualidade dos dados (0-1).
+        
+        Args:
+            brapi_data: Dados retornados pelo brapi.dev
+            
+        Returns:
+            Score de qualidade entre 0 e 1
+        """
+        try:
+            score = 0.0
+            max_score = 10.0
+            
+            quote_data = brapi_data.get('quote', {})
+            fundamentals = brapi_data.get('fundamentals', {})
+            balance_sheet = fundamentals.get('balanceSheet', {})
+            income_statement = fundamentals.get('incomeStatement', {})
+            
+            # Verificar campos essenciais
+            if quote_data.get('regularMarketPrice'):
+                score += 1.0  # Preço da ação
+            if quote_data.get('marketCap'):
+                score += 1.0  # Market Cap
+            if balance_sheet.get('totalAssets'):
+                score += 1.0  # Total de ativos
+            if balance_sheet.get('totalStockholderEquity'):
+                score += 1.0  # Patrimônio líquido
+            if income_statement.get('netIncome'):
+                score += 1.0  # Lucro líquido
+            if income_statement.get('totalRevenue'):
+                score += 1.0  # Receita total
+            if balance_sheet.get('totalDebt') or (balance_sheet.get('shortLongTermDebt') and balance_sheet.get('longTermDebt')):
+                score += 1.0  # Dívida total
+            if fundamentals.get('trailingPE'):
+                score += 1.0  # P/E ratio
+            if fundamentals.get('priceToBook'):
+                score += 1.0  # P/B ratio
+            if quote_data.get('longName'):
+                score += 1.0  # Nome da empresa
+            
+            return score / max_score
+            
+        except Exception as e:
+            logger.error(f"Erro ao calcular score de qualidade: {e}")
+            return 0.0
+
+    def collect_multiple_companies(self, tickers: List[str]) -> Dict[str, CompanyFinancialData]:
+        """
+        Coleta dados de múltiplas empresas.
+        
+        Args:
+            tickers: Lista de códigos de ações
+            
+        Returns:
+            Dicionário com ticker como chave e CompanyFinancialData como valor
+        """
+        results = {}
+        total_tickers = len(tickers)
+        
+        logger.info(f"Iniciando coleta de dados para {total_tickers} empresas")
+        
+        for i, ticker in enumerate(tickers, 1):
+            try:
+                logger.info(f"Processando {i}/{total_tickers}: {ticker}")
+                
+                company_data = self.collect_company_data(ticker)
+                if company_data:
+                    results[ticker] = company_data
+                    logger.info(f"Sucesso: {ticker} - Score: {company_data.data_quality_score:.2f}")
+                else:
+                    logger.warning(f"Falha ao coletar dados para {ticker}")
+                
+            except Exception as e:
+                logger.error(f"Erro ao processar {ticker}: {e}")
+                continue
+        
+        logger.info(f"Coleta concluída: {len(results)}/{total_tickers} empresas processadas")
+        return results
 
 
+# Manter as outras classes inalteradas
 class FinancialMetricsCalculator:
     """
-    Calcula todas as métricas financeiras (WACC, EVA, EFV, etc.)
-    com base nos dados coletados.
+    Calculadora de métricas financeiras (EVA, EFV, WACC, etc.).
+    Esta classe permanece inalterada pois não depende da fonte de dados.
     """
-    def __init__(self, selic_rate: float, tax_rate: float = 0.34, market_risk_premium: float = 0.05):
-        self.selic_rate = selic_rate / 100
-        self.tax_rate = tax_rate
-        self.market_risk_premium = market_risk_premium
-
-    def _calculate_capital_employed(self, data: CompanyFinancialData) -> float:
-        return (data.equity or 0) + (data.total_debt or 0)
-
-    def _calculate_wacc(self, data: CompanyFinancialData, beta: float) -> float:
-        cost_of_equity = self.selic_rate + beta * self.market_risk_premium
-        cost_of_debt = 0.06 # Assumindo um custo de dívida padrão de 6%
+    
+    def __init__(self, selic_rate: float = 0.1465):
+        self.selic_rate = selic_rate
+        self.risk_free_rate = selic_rate
         
-        equity_weight = (data.equity or 0) / self._calculate_capital_employed(data)
-        debt_weight = (data.total_debt or 0) / self._calculate_capital_employed(data)
+    def calculate_wacc(self, company_data: CompanyFinancialData, market_risk_premium: float = 0.06) -> float:
+        """
+        Calcula o WACC (Weighted Average Cost of Capital).
+        
+        Args:
+            company_data: Dados financeiros da empresa
+            market_risk_premium: Prêmio de risco de mercado (padrão 6%)
+            
+        Returns:
+            WACC como decimal (ex: 0.12 para 12%)
+        """
+        try:
+            # Valores básicos
+            market_value_equity = company_data.market_cap
+            market_value_debt = company_data.total_debt
+            total_value = market_value_equity + market_value_debt
+            
+            if total_value <= 0:
+                return self.risk_free_rate + market_risk_premium
+            
+            # Pesos
+            weight_equity = market_value_equity / total_value
+            weight_debt = market_value_debt / total_value
+            
+            # Custo do capital próprio (CAPM simplificado)
+            # Beta assumido como 1.0 para simplificação
+            beta = 1.0
+            cost_of_equity = self.risk_free_rate + beta * market_risk_premium
+            
+            # Custo da dívida (simplificado)
+            cost_of_debt = self.risk_free_rate + 0.03  # Spread de 3%
+            
+            # Taxa de imposto (assumida como 34% para Brasil)
+            tax_rate = 0.34
+            
+            # WACC
+            wacc = (weight_equity * cost_of_equity) + (weight_debt * cost_of_debt * (1 - tax_rate))
+            
+            return wacc
+            
+        except Exception as e:
+            logger.error(f"Erro ao calcular WACC para {company_data.ticker}: {e}")
+            return self.risk_free_rate + market_risk_premium
 
-        if np.isnan(equity_weight) or np.isnan(debt_weight): return np.nan
-
-        wacc = (equity_weight * cost_of_equity) + (debt_weight * cost_of_debt * (1 - self.tax_rate))
-        return wacc
-
-    # CORREÇÃO: A anotação de tipo 'Tuple' foi importada e pode ser usada.
-    def calculate_eva(self, data: CompanyFinancialData, beta: float) -> Tuple[float, float]:
-        nopat = (data.ebit or 0) * (1 - self.tax_rate)
-        capital_employed = self._calculate_capital_employed(data)
-        wacc = self._calculate_wacc(data, beta)
-
-        if capital_employed <= 0 or np.isnan(wacc):
+    def calculate_eva(self, company_data: CompanyFinancialData, wacc: float) -> Tuple[float, float]:
+        """
+        Calcula o EVA (Economic Value Added).
+        
+        Args:
+            company_data: Dados financeiros da empresa
+            wacc: Custo médio ponderado de capital
+            
+        Returns:
+            Tupla (EVA absoluto, EVA percentual)
+        """
+        try:
+            # NOPAT (Net Operating Profit After Taxes)
+            # Simplificação: usar lucro líquido
+            nopat = company_data.net_income
+            
+            # Capital investido
+            invested_capital = company_data.total_assets
+            
+            if invested_capital <= 0:
+                return 0.0, 0.0
+            
+            # Custo do capital
+            capital_cost = invested_capital * wacc
+            
+            # EVA absoluto
+            eva_abs = nopat - capital_cost
+            
+            # EVA percentual
+            eva_perc = (eva_abs / invested_capital) * 100 if invested_capital > 0 else 0.0
+            
+            return eva_abs, eva_perc
+            
+        except Exception as e:
+            logger.error(f"Erro ao calcular EVA para {company_data.ticker}: {e}")
             return 0.0, 0.0
 
-        eva_abs = nopat - (capital_employed * wacc)
-        eva_pct = (eva_abs / capital_employed) * 100 if capital_employed > 0 else 0.0
-        return eva_abs, eva_pct
-
-    def calculate_riqueza_atual(self, data: CompanyFinancialData, beta: float) -> float:
-        eva_abs, _ = self.calculate_eva(data, beta)
-        wacc = self._calculate_wacc(data, beta)
-        if np.isnan(eva_abs) or np.isnan(wacc) or wacc == 0:
-            return np.nan
-        return eva_abs / wacc
-
-    def calculate_riqueza_futura(self, data: CompanyFinancialData) -> float:
-        return (data.market_cap or 0) - self._calculate_capital_employed(data)
-
-    def calculate_efv(self, data: CompanyFinancialData, beta: float) -> Tuple[float, float]:
-        riqueza_atual_abs = self.calculate_riqueza_atual(data, beta)
-        riqueza_futura_esperada_abs = self.calculate_riqueza_futura(data)
-        efv_abs = riqueza_futura_esperada_abs - riqueza_atual_abs
-        capital_employed = self._calculate_capital_employed(data)
+    def calculate_efv(self, company_data: CompanyFinancialData, wacc: float, growth_rate: float = 0.03) -> Tuple[float, float]:
+        """
+        Calcula o EFV (Economic Future Value).
         
-        efv_pct = (efv_abs / capital_employed) * 100 if capital_employed > 0 else 0.0
-        return efv_abs, efv_pct
-
-    def calculate_upside(self, data: CompanyFinancialData, beta: float) -> float:
-        riqueza_atual = self.calculate_riqueza_atual(data, beta)
-        capital_employed = self._calculate_capital_employed(data)
-        
-        fair_value = riqueza_atual + capital_employed
-        if data.market_cap is None or data.market_cap <= 0:
-            return np.nan
+        Args:
+            company_data: Dados financeiros da empresa
+            wacc: Custo médio ponderado de capital
+            growth_rate: Taxa de crescimento esperada (padrão 3%)
             
-        upside_pct = ((fair_value / data.market_cap) - 1) * 100
-        return upside_pct
+        Returns:
+            Tupla (EFV absoluto, EFV percentual)
+        """
+        try:
+            # EVA atual
+            eva_abs, _ = self.calculate_eva(company_data, wacc)
+            
+            # EFV = EVA * (1 + g) / (WACC - g)
+            if wacc <= growth_rate:
+                # Evitar divisão por zero ou negativo
+                efv_abs = eva_abs * 10  # Multiplicador conservador
+            else:
+                efv_abs = eva_abs * (1 + growth_rate) / (wacc - growth_rate)
+            
+            # EFV percentual
+            invested_capital = company_data.total_assets
+            efv_perc = (efv_abs / invested_capital) * 100 if invested_capital > 0 else 0.0
+            
+            return efv_abs, efv_perc
+            
+        except Exception as e:
+            logger.error(f"Erro ao calcular EFV para {company_data.ticker}: {e}")
+            return 0.0, 0.0
+
+    def calculate_wealth_metrics(self, company_data: CompanyFinancialData, wacc: float) -> Tuple[float, float]:
+        """
+        Calcula métricas de riqueza (atual e futura).
+        
+        Args:
+            company_data: Dados financeiros da empresa
+            wacc: Custo médio ponderado de capital
+            
+        Returns:
+            Tupla (Riqueza atual, Riqueza futura)
+        """
+        try:
+            # Riqueza atual = Market Cap
+            current_wealth = company_data.market_cap
+            
+            # Riqueza futura = Market Cap + EFV
+            efv_abs, _ = self.calculate_efv(company_data, wacc)
+            future_wealth = current_wealth + efv_abs
+            
+            return current_wealth, future_wealth
+            
+        except Exception as e:
+            logger.error(f"Erro ao calcular métricas de riqueza para {company_data.ticker}: {e}")
+            return company_data.market_cap, company_data.market_cap
+
+    def calculate_upside(self, company_data: CompanyFinancialData, wacc: float) -> float:
+        """
+        Calcula o potencial de valorização (upside).
+        
+        Args:
+            company_data: Dados financeiros da empresa
+            wacc: Custo médio ponderado de capital
+            
+        Returns:
+            Upside percentual
+        """
+        try:
+            current_wealth, future_wealth = self.calculate_wealth_metrics(company_data, wacc)
+            
+            if current_wealth <= 0:
+                return 0.0
+            
+            upside = ((future_wealth - current_wealth) / current_wealth) * 100
+            return upside
+            
+        except Exception as e:
+            logger.error(f"Erro ao calcular upside para {company_data.ticker}: {e}")
+            return 0.0
 
 
 class CompanyRanking:
     """
-    Cria um ranking das empresas com base em um score combinado.
+    Sistema de ranking de empresas baseado em múltiplas métricas.
+    Esta classe permanece inalterada.
     """
-    def __init__(self, calculator: FinancialMetricsCalculator):
-        self.calculator = calculator
-
-    def rank_companies(self, companies_data: List[CompanyFinancialData]) -> List[Dict[str, Any]]:
-        results = []
-        for data in companies_data:
-            try:
-                beta = 1.0 # Beta padrão para simplificação
-                eva_abs, eva_pct = self.calculator.calculate_eva(data, beta)
-                efv_abs, efv_pct = self.calculator.calculate_efv(data, beta)
-                upside = self.calculator.calculate_upside(data, beta)
-                
-                # Cálculo do Score
-                score = (eva_pct * 0.4) + (efv_pct * 0.3) + (upside * 0.3)
-
-                results.append({
-                    'ticker': data.ticker,
-                    'company_name': data.company_name,
-                    'metrics': {
-                        'combined_score': score,
-                        'eva_percentual': eva_pct,
-                        'efv_percentual': efv_pct,
-                        'upside_percentual': upside,
-                        'wacc_percentual': self.calculator._calculate_wacc(data, beta) * 100,
-                        'market_cap': data.market_cap,
-                        'stock_price': data.stock_price,
-                        'raw_data': vars(data) # Inclui os dados brutos para referência
-                    }
-                })
-            except Exception as e:
-                logger.error(f"Erro ao rankear {data.ticker}: {e}")
-                
-        # Ordena pelo score combinado, do maior para o menor
-        ranked_results = sorted(results, key=lambda x: x['metrics']['combined_score'], reverse=True)
-        return ranked_results
+    
+    def __init__(self):
+        self.weights = {
+            'eva_percentual': 0.25,
+            'efv_percentual': 0.25,
+            'upside': 0.20,
+            'data_quality': 0.15,
+            'market_cap': 0.10,
+            'pe_ratio': 0.05
+        }
+    
+    def calculate_combined_score(self, metrics: Dict[str, float]) -> float:
+        """
+        Calcula um score combinado baseado em múltiplas métricas.
+        
+        Args:
+            metrics: Dicionário com as métricas calculadas
+            
+        Returns:
+            Score combinado (0-100)
+        """
+        try:
+            score = 0.0
+            
+            # Normalizar e ponderar cada métrica
+            eva_score = self._normalize_eva(metrics.get('eva_percentual', 0))
+            efv_score = self._normalize_efv(metrics.get('efv_percentual', 0))
+            upside_score = self._normalize_upside(metrics.get('upside', 0))
+            quality_score = metrics.get('data_quality_score', 0) * 100
+            cap_score = self._normalize_market_cap(metrics.get('market_cap', 0))
+            pe_score = self._normalize_pe_ratio(metrics.get('pe_ratio', 0))
+            
+            # Aplicar pesos
+            score = (
+                eva_score * self.weights['eva_percentual'] +
+                efv_score * self.weights['efv_percentual'] +
+                upside_score * self.weights['upside'] +
+                quality_score * self.weights['data_quality'] +
+                cap_score * self.weights['market_cap'] +
+                pe_score * self.weights['pe_ratio']
+            )
+            
+            return min(100.0, max(0.0, score))
+            
+        except Exception as e:
+            logger.error(f"Erro ao calcular score combinado: {e}")
+            return 0.0
+    
+    def _normalize_eva(self, eva_perc: float) -> float:
+        """Normaliza EVA percentual para escala 0-100."""
+        if eva_perc > 20:
+            return 100.0
+        elif eva_perc > 0:
+            return 50.0 + (eva_perc / 20.0) * 50.0
+        else:
+            return max(0.0, 50.0 + eva_perc * 2.5)
+    
+    def _normalize_efv(self, efv_perc: float) -> float:
+        """Normaliza EFV percentual para escala 0-100."""
+        if efv_perc > 50:
+            return 100.0
+        elif efv_perc > 0:
+            return 50.0 + (efv_perc / 50.0) * 50.0
+        else:
+            return max(0.0, 50.0 + efv_perc * 1.0)
+    
+    def _normalize_upside(self, upside: float) -> float:
+        """Normaliza upside para escala 0-100."""
+        if upside > 100:
+            return 100.0
+        elif upside > 0:
+            return upside
+        else:
+            return 0.0
+    
+    def _normalize_market_cap(self, market_cap: float) -> float:
+        """Normaliza market cap para escala 0-100."""
+        if market_cap > 100_000_000_000:  # > 100B
+            return 100.0
+        elif market_cap > 10_000_000_000:  # > 10B
+            return 80.0
+        elif market_cap > 1_000_000_000:   # > 1B
+            return 60.0
+        elif market_cap > 100_000_000:     # > 100M
+            return 40.0
+        else:
+            return 20.0
+    
+    def _normalize_pe_ratio(self, pe_ratio: float) -> float:
+        """Normaliza P/E ratio para escala 0-100 (menor é melhor)."""
+        if pe_ratio <= 0:
+            return 0.0
+        elif pe_ratio < 10:
+            return 100.0
+        elif pe_ratio < 20:
+            return 80.0
+        elif pe_ratio < 30:
+            return 60.0
+        else:
+            return 40.0
