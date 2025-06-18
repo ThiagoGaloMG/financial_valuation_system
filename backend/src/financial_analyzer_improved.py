@@ -58,7 +58,7 @@ class FinancialDataCollector:
         """
         try:
             # Remover .SA do ticker se presente (brapi.dev usa formato sem .SA)
-            clean_ticker = ticker.replace(\".SA\', \'\')
+            clean_ticker = ticker.replace('.SA', '')
             
             logger.info(f"Coletando dados para o ticker: {clean_ticker}")
             
@@ -94,50 +94,50 @@ class FinancialDataCollector:
         """
         try:
             # Extrair dados básicos
-            quote_data = brapi_data.get(\'quote\', {})
-            fundamentals = brapi_data.get(\'fundamentals\', {})
+            quote_data = brapi_data.get('quote', {})
+            fundamentals = brapi_data.get('fundamentals', {})
             
             # Dados básicos da empresa
-            company_name = quote_data.get(\'longName\', ticker)
-            sector = fundamentals.get(\'sector\', \'N/A\')
+            company_name = quote_data.get('longName', ticker)
+            sector = fundamentals.get('sector', 'N/A')
             
             # Preço da ação
-            stock_price = quote_data.get(\'regularMarketPrice\', 0)
+            stock_price = quote_data.get('regularMarketPrice', 0)
             
             # Market Cap
-            market_cap = quote_data.get(\'marketCap\', 0)
+            market_cap = quote_data.get('marketCap', 0)
             if not market_cap and stock_price:
-                shares_outstanding = fundamentals.get(\'sharesOutstanding\', 0)
+                shares_outstanding = fundamentals.get('sharesOutstanding', 0)
                 if shares_outstanding:
                     market_cap = stock_price * shares_outstanding
             
             # Dados financeiros do balanço
-            balance_sheet = fundamentals.get(\'balanceSheet\', {})
-            income_statement = fundamentals.get(\'incomeStatement\', {})
+            balance_sheet = fundamentals.get('balanceSheet', {})
+            income_statement = fundamentals.get('incomeStatement', {})
             
             # Total de ativos
-            total_assets = balance_sheet.get(\'totalAssets\', 0)
+            total_assets = balance_sheet.get('totalAssets', 0)
             
             # Patrimônio líquido
-            total_equity = balance_sheet.get(\'totalStockholderEquity\', 0)
+            total_equity = balance_sheet.get('totalStockholderEquity', 0)
             
             # Lucro líquido
-            net_income = income_statement.get(\'netIncome\', 0)
+            net_income = income_statement.get('netIncome', 0)
             
             # Receita total
-            total_revenue = income_statement.get(\'totalRevenue\', 0)
+            total_revenue = income_statement.get('totalRevenue', 0)
             
             # Dívida total
-            total_debt = balance_sheet.get(\'totalDebt\', 0)
+            total_debt = balance_sheet.get('totalDebt', 0)
             if not total_debt:
                 # Tentar calcular como soma de dívidas de curto e longo prazo
-                short_debt = balance_sheet.get(\'shortLongTermDebt\', 0)
-                long_debt = balance_sheet.get(\'longTermDebt\', 0)
+                short_debt = balance_sheet.get('shortLongTermDebt', 0)
+                long_debt = balance_sheet.get('longTermDebt', 0)
                 total_debt = short_debt + long_debt
             
             # Múltiplos
-            pe_ratio = fundamentals.get(\'trailingPE\', 0)
-            pb_ratio = fundamentals.get(\'priceToBook\', 0)
+            pe_ratio = fundamentals.get('trailingPE', 0)
+            pb_ratio = fundamentals.get('priceToBook', 0)
             
             # Criar objeto CompanyFinancialData
             company_data = CompanyFinancialData(
@@ -192,31 +192,31 @@ class FinancialDataCollector:
             score = 0.0
             max_score = 10.0
             
-            quote_data = brapi_data.get(\'quote\', {})
-            fundamentals = brapi_data.get(\'fundamentals\', {})
-            balance_sheet = fundamentals.get(\'balanceSheet\', {})
-            income_statement = fundamentals.get(\'incomeStatement\', {})
+            quote_data = brapi_data.get('quote', {})
+            fundamentals = brapi_data.get('fundamentals', {})
+            balance_sheet = fundamentals.get('balanceSheet', {})
+            income_statement = fundamentals.get('incomeStatement', {})
             
             # Verificar campos essenciais
-            if quote_data.get(\'regularMarketPrice\'):
+            if quote_data.get('regularMarketPrice'):
                 score += 1.0  # Preço da ação
-            if quote_data.get(\'marketCap\'):
+            if quote_data.get('marketCap'):
                 score += 1.0  # Market Cap
-            if balance_sheet.get(\'totalAssets\'):
+            if balance_sheet.get('totalAssets'):
                 score += 1.0  # Total de ativos
-            if balance_sheet.get(\'totalStockholderEquity\'):
+            if balance_sheet.get('totalStockholderEquity'):
                 score += 1.0  # Patrimônio líquido
-            if income_statement.get(\'netIncome\'):
+            if income_statement.get('netIncome'):
                 score += 1.0  # Lucro líquido
-            if income_statement.get(\'totalRevenue\'):
+            if income_statement.get('totalRevenue'):
                 score += 1.0  # Receita total
-            if balance_sheet.get(\'totalDebt\') or (balance_sheet.get(\'shortLongTermDebt\') and balance_sheet.get(\'longTermDebt\')):
+            if balance_sheet.get('totalDebt') or (balance_sheet.get('shortLongTermDebt') and balance_sheet.get('longTermDebt')):
                 score += 1.0  # Dívida total
-            if fundamentals.get(\'trailingPE\'):
+            if fundamentals.get('trailingPE'):
                 score += 1.0  # P/E ratio
-            if fundamentals.get(\'priceToBook\'):
+            if fundamentals.get('priceToBook'):
                 score += 1.0  # P/B ratio
-            if quote_data.get(\'longName\'):
+            if quote_data.get('longName'):
                 score += 1.0  # Nome da empresa
             
             return score / max_score
@@ -421,70 +421,122 @@ class FinancialMetricsCalculator:
             Upside percentual
         """
         try:
-            current_wealth, future_wealth = self.calculate_wealth_metrics(company_data, wacc)
-            if not company_data.market_cap or company_data.market_cap <= 0:
+            # Valor intrínseco (simplificado: riqueza futura / número de ações)
+            # Assumindo que o número de ações é 1 para fins de cálculo de preço por ação
+            # Para um cálculo mais preciso, precisaríamos do número de ações em circulação
+            # Por enquanto, usaremos o market_cap como base para o valor da empresa
+            intrinsic_value = company_data.market_cap + self.calculate_efv(company_data, wacc)[0]
+            
+            # Preço atual da ação
+            current_price = company_data.stock_price
+            
+            if current_price <= 0:
                 return 0.0
-            return ((future_wealth - current_wealth) / current_wealth) * 100
+            
+            # Upside = ((Valor Intrínseco / Preço Atual) - 1) * 100
+            upside = ((intrinsic_value / current_price) - 1) * 100
+            
+            return upside
+            
         except Exception as e:
             logger.error(f"Erro ao calcular upside para {company_data.ticker}: {e}")
             return 0.0
 
 
-class FinancialAnalysisSystem:
+class CompanyRanking:
     """
-    Sistema principal de análise financeira que integra coleta e cálculo.
+    Sistema de ranking de empresas.
+    Esta classe permanece inalterada.
     """
-    def __init__(self, selic_rate: float = 0.1465):
-        self.data_collector = FinancialDataCollector()
-        self.metrics_calculator = FinancialMetricsCalculator(selic_rate)
+    
+    def __init__(self):
+        self.metrics_calculator = FinancialMetricsCalculator()
 
-    def analyze_company(self, ticker: str) -> Optional[Dict]:
+    def rank_companies(self, companies_data: Dict[str, CompanyFinancialData]) -> List[Dict]:
         """
-        Realiza a análise completa de uma empresa.
+        Classifica empresas com base em um score combinado de métricas.
+        
+        Args:
+            companies_data: Dicionário com dados financeiros das empresas
+            
+        Returns:
+            Lista de dicionários com o ranking das empresas
         """
-        company_data = self.data_collector.collect_company_data(ticker)
-        if not company_data:
-            logger.warning(f"Não foi possível coletar dados para {ticker}. Análise abortada.")
-            return None
+        ranked_list = []
+        
+        for ticker, data in companies_data.items():
+            try:
+                # Calcular WACC
+                wacc = self.metrics_calculator.calculate_wacc(data)
+                
+                # Calcular EVA
+                eva_abs, eva_perc = self.metrics_calculator.calculate_eva(data, wacc)
+                
+                # Calcular EFV
+                efv_abs, efv_perc = self.metrics_calculator.calculate_efv(data, wacc)
+                
+                # Calcular Riqueza
+                current_wealth, future_wealth = self.metrics_calculator.calculate_wealth_metrics(data, wacc)
+                
+                # Calcular Upside
+                upside = self.metrics_calculator.calculate_upside(data, wacc)
+                
+                # Score combinado (exemplo: pode ser ajustado)
+                # Priorizar empresas com EVA e EFV positivos e alto upside
+                combined_score = (eva_perc * 0.3) + (efv_perc * 0.3) + (upside * 0.4)
+                
+                ranked_list.append({
+                    "ticker": ticker,
+                    "company_name": data.company_name,
+                    "sector": data.sector,
+                    "stock_price": data.stock_price,
+                    "market_cap": data.market_cap,
+                    "wacc": wacc,
+                    "eva_abs": eva_abs,
+                    "eva_perc": eva_perc,
+                    "efv_abs": efv_abs,
+                    "efv_perc": efv_perc,
+                    "current_wealth": current_wealth,
+                    "future_wealth": future_wealth,
+                    "upside": upside,
+                    "combined_score": combined_score,
+                    "data_quality_score": data.data_quality_score
+                })
+                
+            except Exception as e:
+                logger.error(f"Erro ao calcular métricas para {ticker} no ranking: {e}")
+                continue
+        
+        # Ordenar a lista pelo score combinado (do maior para o menor)
+        ranked_list.sort(key=lambda x: x.get("combined_score", 0), reverse=True)
+        
+        return ranked_list
 
-        wacc = self.metrics_calculator.calculate_wacc(company_data)
-        eva_abs, eva_perc = self.metrics_calculator.calculate_eva(company_data, wacc)
-        efv_abs, efv_perc = self.metrics_calculator.calculate_efv(company_data, wacc)
-        current_wealth, future_wealth = self.metrics_calculator.calculate_wealth_metrics(company_data, wacc)
-        upside = self.metrics_calculator.calculate_upside(company_data, wacc)
 
-        return {
-            "ticker": company_data.ticker,
-            "company_name": company_data.company_name,
-            "sector": company_data.sector,
-            "stock_price": company_data.stock_price,
-            "market_cap": company_data.market_cap,
-            "total_assets": company_data.total_assets,
-            "total_equity": company_data.total_equity,
-            "net_income": company_data.net_income,
-            "total_revenue": company_data.total_revenue,
-            "total_debt": company_data.total_debt,
-            "pe_ratio": company_data.pe_ratio,
-            "pb_ratio": company_data.pb_ratio,
-            "data_quality_score": company_data.data_quality_score,
-            "wacc": wacc,
-            "eva_abs": eva_abs,
-            "eva_perc": eva_perc,
-            "efv_abs": efv_abs,
-            "efv_perc": efv_perc,
-            "current_wealth": current_wealth,
-            "future_wealth": future_wealth,
-            "upside": upside
-        }
+if __name__ == '__main__':
+    # Exemplo de uso
+    collector = FinancialDataCollector()
+    calculator = FinancialMetricsCalculator()
+    ranking_system = CompanyRanking()
 
-    def analyze_multiple_companies(self, tickers: List[str]) -> List[Dict]:
-        """
-        Realiza a análise de múltiplas empresas e retorna uma lista de resultados.
-        """
-        all_companies_data = self.data_collector.collect_multiple_companies(tickers)
-        results = []
-        for ticker, company_data in all_companies_data.items():
-            analysis_result = self.analyze_company(ticker)
-            if analysis_result:
-                results.append(analysis_result)
-        return results
+    # Coletar dados de algumas empresas de exemplo
+    # tickers_to_collect = ["PETR4", "VALE3", "ITUB4", "BBDC4", "ABEV3"]
+    # Usar dados de exemplo para testes locais mais rápidos
+    companies_data = sample_financial_data  # Dados de exemplo do sample_data.py
+
+    # Coletar dados de empresas reais (descomente para testar com dados reais)
+    # from ibovespa_data_improved import ibovespa_tickers
+    # companies_data = collector.collect_multiple_companies(ibovespa_tickers[:10]) # Coleta as 10 primeiras para teste
+
+    if companies_data:
+        print("\n--- Dados Coletados ---")
+        for ticker, data in companies_data.items():
+            print(f"Ticker: {data.ticker}, Nome: {data.company_name}, Preço: {data.stock_price}, Market Cap: {data.market_cap}, Qualidade: {data.data_quality_score:.2f}")
+
+        print("\n--- Ranking de Empresas ---")
+        ranked_companies = ranking_system.rank_companies(companies_data)
+        for i, company in enumerate(ranked_companies[:5]):  # Mostrar top 5
+            print(f"{i+1}. {company['company_name']} ({company['ticker']}) - Score: {company['combined_score']:.2f}, Upside: {company['upside']:.2f}%")
+
+    else:
+        print("Nenhum dado de empresa coletado.")
