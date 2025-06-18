@@ -1,20 +1,46 @@
-# backend/requirements.txt
+# backend/requirements_updated.txt
+# Dependências atualizadas para o Sistema de Análise Financeira
+# Inclui novas dependências para brapi.dev e melhorias de UI
 
-# Dependências principais da aplicação Flask
-Flask==3.0.3
-Flask-Cors==4.0.1
-gunicorn==22.0.0 # Servidor WSGI para produção
+# Framework web
+Flask==3.0.0
+Flask-CORS==4.0.0
+gunicorn==21.2.0
 
-# Bibliotecas de análise financeira e coleta de dados
-pandas==2.2.2
-numpy==1.26.4
-yfinance==0.2.40
-requests==2.32.3
-beautifulsoup4==4.12.3
-scikit-learn==1.4.2 # Para AdvancedRanking (KMeans, StandardScaler)
+# Banco de dados
+psycopg2-binary==2.9.9
+supabase==2.3.0
 
-# Logging (já incluído no Python, mas para garantir)
-# Se precisar de um logger mais robusto, pode adicionar 'loguru' ou similar.
+# Análise de dados e cálculos financeiros
+pandas==2.1.4
+numpy==1.25.2
+scipy==1.11.4
 
-psycopg2-binary==2.9.9 # Ou a versão mais recente que o Render/ambiente aceite
-python-dotenv==1.0.1  # Útil para testes locais futuros, mas o Render não precisa para injetar as variáveis
+# Coleta de dados financeiros
+requests==2.31.0
+yfinance==0.2.28  # Mantido como fallback
+beautifulsoup4==4.12.2  # Para web scraping se necessário
+
+# Processamento de datas
+python-dateutil==2.8.2
+
+# Logging e monitoramento
+python-dotenv==1.0.0
+
+# Validação de dados
+pydantic==2.5.2
+
+# Cache e performance
+redis==5.0.1  # Opcional para cache avançado
+
+# Utilitários
+typing-extensions==4.8.0
+
+# Desenvolvimento e testes
+pytest==7.4.3
+pytest-flask==1.3.0
+black==23.11.0
+flake8==6.1.0
+
+# Documentação da API
+flask-restx==1.3.0  # Para documentação automática da API
