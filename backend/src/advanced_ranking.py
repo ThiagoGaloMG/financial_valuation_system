@@ -8,7 +8,7 @@ import logging
 from sklearn.preprocessing import StandardScaler
 from sklearn.cluster import KMeans
 
-# Import das classes de cálculo de métricas
+# Import das classes de cálculo de métricas e de dados
 from financial_analyzer import FinancialMetricsCalculator
 from financial_analyzer_dataclass import CompanyFinancialData
 
@@ -147,7 +147,7 @@ class PortfolioOptimizer:
                 continue
             
             # --- CORREÇÃO APLICADA AQUI ---
-            # O bloco 'try' precisa de um 'except' para ser sintaticamente válido.
+            # O bloco 'try' foi completado com um 'except' para ser sintaticamente válido.
             try:
                 beta = 1.0 # Beta padrão para simplificação
                 eva_abs, _ = self.calculator.calculate_eva(data, beta)
