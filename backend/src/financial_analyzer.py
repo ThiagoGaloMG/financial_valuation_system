@@ -1,4 +1,4 @@
-# backend/src/financial_analyzer_improved.py
+# backend/src/financial_analyzer.py
 # Versão melhorada do financial_analyzer usando brapi.dev
 
 import os
@@ -16,7 +16,7 @@ from sample_data import sample_financial_data
 from brapi_data_collector import BrapiDataCollector
 
 logger = logging.getLogger(__name__)
-logging.basicConfig(level=os.getenv("LOG_LEVEL", "INFO"), format='%(asctime)s [%(levelname)s] - %(message)s')
+logging.basicConfig(level=os.getenv("LOG_LEVEL", "INFO"), format=\'%(asctime)s [%(levelname)s] - %(message)s\')
 
 
 class FinancialDataCollector:
@@ -51,14 +51,14 @@ class FinancialDataCollector:
         Coleta dados financeiros de uma empresa usando brapi.dev.
         
         Args:
-            ticker: Código da ação (ex: 'PETR4')
+            ticker: Código da ação (ex: \'PETR4\')
             
         Returns:
             CompanyFinancialData ou None se não conseguir coletar
         """
         try:
             # Remover .SA do ticker se presente (brapi.dev usa formato sem .SA)
-            clean_ticker = ticker.replace('.SA', '')
+            clean_ticker = ticker.replace(\".SA\', \'\')
             
             logger.info(f"Coletando dados para o ticker: {clean_ticker}")
             
@@ -94,50 +94,50 @@ class FinancialDataCollector:
         """
         try:
             # Extrair dados básicos
-            quote_data = brapi_data.get('quote', {})
-            fundamentals = brapi_data.get('fundamentals', {})
+            quote_data = brapi_data.get(\'quote\', {})
+            fundamentals = brapi_data.get(\'fundamentals\', {})
             
             # Dados básicos da empresa
-            company_name = quote_data.get('longName', ticker)
-            sector = fundamentals.get('sector', 'N/A')
+            company_name = quote_data.get(\'longName\', ticker)
+            sector = fundamentals.get(\'sector\', \'N/A\')
             
             # Preço da ação
-            stock_price = quote_data.get('regularMarketPrice', 0)
+            stock_price = quote_data.get(\'regularMarketPrice\', 0)
             
             # Market Cap
-            market_cap = quote_data.get('marketCap', 0)
+            market_cap = quote_data.get(\'marketCap\', 0)
             if not market_cap and stock_price:
-                shares_outstanding = fundamentals.get('sharesOutstanding', 0)
+                shares_outstanding = fundamentals.get(\'sharesOutstanding\', 0)
                 if shares_outstanding:
                     market_cap = stock_price * shares_outstanding
             
             # Dados financeiros do balanço
-            balance_sheet = fundamentals.get('balanceSheet', {})
-            income_statement = fundamentals.get('incomeStatement', {})
+            balance_sheet = fundamentals.get(\'balanceSheet\', {})
+            income_statement = fundamentals.get(\'incomeStatement\', {})
             
             # Total de ativos
-            total_assets = balance_sheet.get('totalAssets', 0)
+            total_assets = balance_sheet.get(\'totalAssets\', 0)
             
             # Patrimônio líquido
-            total_equity = balance_sheet.get('totalStockholderEquity', 0)
+            total_equity = balance_sheet.get(\'totalStockholderEquity\', 0)
             
             # Lucro líquido
-            net_income = income_statement.get('netIncome', 0)
+            net_income = income_statement.get(\'netIncome\', 0)
             
             # Receita total
-            total_revenue = income_statement.get('totalRevenue', 0)
+            total_revenue = income_statement.get(\'totalRevenue\', 0)
             
             # Dívida total
-            total_debt = balance_sheet.get('totalDebt', 0)
+            total_debt = balance_sheet.get(\'totalDebt\', 0)
             if not total_debt:
                 # Tentar calcular como soma de dívidas de curto e longo prazo
-                short_debt = balance_sheet.get('shortLongTermDebt', 0)
-                long_debt = balance_sheet.get('longTermDebt', 0)
+                short_debt = balance_sheet.get(\'shortLongTermDebt\', 0)
+                long_debt = balance_sheet.get(\'longTermDebt\', 0)
                 total_debt = short_debt + long_debt
             
             # Múltiplos
-            pe_ratio = fundamentals.get('trailingPE', 0)
-            pb_ratio = fundamentals.get('priceToBook', 0)
+            pe_ratio = fundamentals.get(\'trailingPE\', 0)
+            pb_ratio = fundamentals.get(\'priceToBook\', 0)
             
             # Criar objeto CompanyFinancialData
             company_data = CompanyFinancialData(
@@ -192,31 +192,31 @@ class FinancialDataCollector:
             score = 0.0
             max_score = 10.0
             
-            quote_data = brapi_data.get('quote', {})
-            fundamentals = brapi_data.get('fundamentals', {})
-            balance_sheet = fundamentals.get('balanceSheet', {})
-            income_statement = fundamentals.get('incomeStatement', {})
+            quote_data = brapi_data.get(\'quote\', {})
+            fundamentals = brapi_data.get(\'fundamentals\', {})
+            balance_sheet = fundamentals.get(\'balanceSheet\', {})
+            income_statement = fundamentals.get(\'incomeStatement\', {})
             
             # Verificar campos essenciais
-            if quote_data.get('regularMarketPrice'):
+            if quote_data.get(\'regularMarketPrice\'):
                 score += 1.0  # Preço da ação
-            if quote_data.get('marketCap'):
+            if quote_data.get(\'marketCap\'):
                 score += 1.0  # Market Cap
-            if balance_sheet.get('totalAssets'):
+            if balance_sheet.get(\'totalAssets\'):
                 score += 1.0  # Total de ativos
-            if balance_sheet.get('totalStockholderEquity'):
+            if balance_sheet.get(\'totalStockholderEquity\'):
                 score += 1.0  # Patrimônio líquido
-            if income_statement.get('netIncome'):
+            if income_statement.get(\'netIncome\'):
                 score += 1.0  # Lucro líquido
-            if income_statement.get('totalRevenue'):
+            if income_statement.get(\'totalRevenue\'):
                 score += 1.0  # Receita total
-            if balance_sheet.get('totalDebt') or (balance_sheet.get('shortLongTermDebt') and balance_sheet.get('longTermDebt')):
+            if balance_sheet.get(\'totalDebt\') or (balance_sheet.get(\'shortLongTermDebt\') and balance_sheet.get(\'longTermDebt\')):
                 score += 1.0  # Dívida total
-            if fundamentals.get('trailingPE'):
+            if fundamentals.get(\'trailingPE\'):
                 score += 1.0  # P/E ratio
-            if fundamentals.get('priceToBook'):
+            if fundamentals.get(\'priceToBook\'):
                 score += 1.0  # P/B ratio
-            if quote_data.get('longName'):
+            if quote_data.get(\'longName\'):
                 score += 1.0  # Nome da empresa
             
             return score / max_score
@@ -241,7 +241,6 @@ class FinancialDataCollector:
         logger.info(f"Iniciando coleta de dados para {total_tickers} empresas")
         
         for i, ticker in enumerate(tickers, 1):
-            time.sleep(2)
             try:
                 logger.info(f"Processando {i}/{total_tickers}: {ticker}")
                 
@@ -423,120 +422,69 @@ class FinancialMetricsCalculator:
         """
         try:
             current_wealth, future_wealth = self.calculate_wealth_metrics(company_data, wacc)
-            
-            if current_wealth <= 0:
+            if not company_data.market_cap or company_data.market_cap <= 0:
                 return 0.0
-            
-            upside = ((future_wealth - current_wealth) / current_wealth) * 100
-            return upside
-            
+            return ((future_wealth - current_wealth) / current_wealth) * 100
         except Exception as e:
             logger.error(f"Erro ao calcular upside para {company_data.ticker}: {e}")
             return 0.0
 
 
-class CompanyRanking:
+class FinancialAnalysisSystem:
     """
-    Sistema de ranking de empresas baseado em múltiplas métricas.
+    Sistema principal de análise financeira que integra coleta e cálculo.
     """
-    
-    def __init__(self, calculator):
-        self.calculator = calculator  # Armazena o calculator para uso futuro, se necessário
-        self.weights = {
-            'eva_percentual': 0.25,
-            'efv_percentual': 0.25,
-            'upside': 0.20,
-            'data_quality': 0.15,
-            'market_cap': 0.10,
-            'pe_ratio': 0.05
+    def __init__(self, selic_rate: float = 0.1465):
+        self.data_collector = FinancialDataCollector()
+        self.metrics_calculator = FinancialMetricsCalculator(selic_rate)
+
+    def analyze_company(self, ticker: str) -> Optional[Dict]:
+        """
+        Realiza a análise completa de uma empresa.
+        """
+        company_data = self.data_collector.collect_company_data(ticker)
+        if not company_data:
+            logger.warning(f"Não foi possível coletar dados para {ticker}. Análise abortada.")
+            return None
+
+        wacc = self.metrics_calculator.calculate_wacc(company_data)
+        eva_abs, eva_perc = self.metrics_calculator.calculate_eva(company_data, wacc)
+        efv_abs, efv_perc = self.metrics_calculator.calculate_efv(company_data, wacc)
+        current_wealth, future_wealth = self.metrics_calculator.calculate_wealth_metrics(company_data, wacc)
+        upside = self.metrics_calculator.calculate_upside(company_data, wacc)
+
+        return {
+            "ticker": company_data.ticker,
+            "company_name": company_data.company_name,
+            "sector": company_data.sector,
+            "stock_price": company_data.stock_price,
+            "market_cap": company_data.market_cap,
+            "total_assets": company_data.total_assets,
+            "total_equity": company_data.total_equity,
+            "net_income": company_data.net_income,
+            "total_revenue": company_data.total_revenue,
+            "total_debt": company_data.total_debt,
+            "pe_ratio": company_data.pe_ratio,
+            "pb_ratio": company_data.pb_ratio,
+            "data_quality_score": company_data.data_quality_score,
+            "wacc": wacc,
+            "eva_abs": eva_abs,
+            "eva_perc": eva_perc,
+            "efv_abs": efv_abs,
+            "efv_perc": efv_perc,
+            "current_wealth": current_wealth,
+            "future_wealth": future_wealth,
+            "upside": upside
         }
-    
-    def calculate_combined_score(self, metrics: Dict[str, float]) -> float:
+
+    def analyze_multiple_companies(self, tickers: List[str]) -> List[Dict]:
         """
-        Calcula um score combinado baseado em múltiplas métricas.
-        
-        Args:
-            metrics: Dicionário com as métricas calculadas
-            
-        Returns:
-            Score combinado (0-100)
+        Realiza a análise de múltiplas empresas e retorna uma lista de resultados.
         """
-        try:
-            score = 0.0
-            
-            # Normalizar e ponderar cada métrica
-            eva_score = self._normalize_eva(metrics.get('eva_percentual', 0))
-            efv_score = self._normalize_efv(metrics.get('efv_percentual', 0))
-            upside_score = self._normalize_upside(metrics.get('upside', 0))
-            quality_score = metrics.get('data_quality_score', 0) * 100
-            cap_score = self._normalize_market_cap(metrics.get('market_cap', 0))
-            pe_score = self._normalize_pe_ratio(metrics.get('pe_ratio', 0))
-            
-            # Aplicar pesos
-            score = (
-                eva_score * self.weights['eva_percentual'] +
-                efv_score * self.weights['efv_percentual'] +
-                upside_score * self.weights['upside'] +
-                quality_score * self.weights['data_quality'] +
-                cap_score * self.weights['market_cap'] +
-                pe_score * self.weights['pe_ratio']
-            )
-            
-            return min(100.0, max(0.0, score))
-            
-        except Exception as e:
-            logger.error(f"Erro ao calcular score combinado: {e}")
-            return 0.0
-    
-    def _normalize_eva(self, eva_perc: float) -> float:
-        """Normaliza EVA percentual para escala 0-100."""
-        if eva_perc > 20:
-            return 100.0
-        elif eva_perc > 0:
-            return 50.0 + (eva_perc / 20.0) * 50.0
-        else:
-            return max(0.0, 50.0 + eva_perc * 2.5)
-    
-    def _normalize_efv(self, efv_perc: float) -> float:
-        """Normaliza EFV percentual para escala 0-100."""
-        if efv_perc > 50:
-            return 100.0
-        elif efv_perc > 0:
-            return 50.0 + (efv_perc / 50.0) * 50.0
-        else:
-            return max(0.0, 50.0 + efv_perc * 1.0)
-    
-    def _normalize_upside(self, upside: float) -> float:
-        """Normaliza upside para escala 0-100."""
-        if upside > 100:
-            return 100.0
-        elif upside > 0:
-            return upside
-        else:
-            return 0.0
-    
-    def _normalize_market_cap(self, market_cap: float) -> float:
-        """Normaliza market cap para escala 0-100."""
-        if market_cap > 100_000_000_000:  # > 100B
-            return 100.0
-        elif market_cap > 10_000_000_000:  # > 10B
-            return 80.0
-        elif market_cap > 1_000_000_000:   # > 1B
-            return 60.0
-        elif market_cap > 100_000_000:     # > 100M
-            return 40.0
-        else:
-            return 20.0
-    
-    def _normalize_pe_ratio(self, pe_ratio: float) -> float:
-        """Normaliza P/E ratio para escala 0-100 (menor é melhor)."""
-        if pe_ratio <= 0:
-            return 0.0
-        elif pe_ratio < 10:
-            return 100.0
-        elif pe_ratio < 20:
-            return 80.0
-        elif pe_ratio < 30:
-            return 60.0
-        else:
-            return 40.0
+        all_companies_data = self.data_collector.collect_multiple_companies(tickers)
+        results = []
+        for ticker, company_data in all_companies_data.items():
+            analysis_result = self.analyze_company(ticker)
+            if analysis_result:
+                results.append(analysis_result)
+        return results
