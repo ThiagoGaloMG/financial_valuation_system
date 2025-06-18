@@ -437,10 +437,10 @@ class FinancialMetricsCalculator:
 class CompanyRanking:
     """
     Sistema de ranking de empresas baseado em múltiplas métricas.
-    Esta classe permanece inalterada.
     """
     
-    def __init__(self):
+    def __init__(self, calculator):
+        self.calculator = calculator  # Armazena o calculator para uso futuro, se necessário
         self.weights = {
             'eva_percentual': 0.25,
             'efv_percentual': 0.25,
