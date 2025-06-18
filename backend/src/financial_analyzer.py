@@ -241,6 +241,7 @@ class FinancialDataCollector:
         logger.info(f"Iniciando coleta de dados para {total_tickers} empresas")
         
         for i, ticker in enumerate(tickers, 1):
+            time.sleep(2)
             try:
                 logger.info(f"Processando {i}/{total_tickers}: {ticker}")
                 
